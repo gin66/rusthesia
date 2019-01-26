@@ -285,6 +285,11 @@ fn run() -> Result<(), Box<Error>> {
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
+                Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+                    curr_pos = curr_pos.max(10) - 10;
+                    next_head_pos = curr_pos + 1;
+                    realtime = timeline[curr_pos].0;
+                },
                 _ => {}
             }
         }
