@@ -147,6 +147,7 @@ fn run() -> Result<(), Box<Error>> {
     let mut realtime = 0;
     let mut next_head_pos = 1;
     let mut curr_pos = 0;
+    let mut paused = false;
     'running: loop {
         if next_head_pos < timeline.len() {
             if timeline[next_head_pos].0 <= realtime {
@@ -301,6 +302,12 @@ fn run() -> Result<(), Box<Error>> {
                     ..
                 } => break 'running,
                 Event::KeyDown {
+                    keycode: Some(Keycode::Space),
+                    ..
+                } => {
+                    paused = !paused;
+                },
+                Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
                 } => {
@@ -318,7 +325,9 @@ fn run() -> Result<(), Box<Error>> {
             if dt > 0 {
                 let dt = dt.min(25);
                 sleep(Duration::from_millis(dt as u64));
-                realtime += dt;
+                if !paused {
+                    realtime += dt;
+                }
             }
         }
     }
