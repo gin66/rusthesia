@@ -1,0 +1,13 @@
+[package]
+name = "rusthesia"
+version = "0.1.0"
+authors = ["Jochen Kiemes <jochen@kiemes.de>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4"
+# nom = "4.1"
+simple-logging = "2.0"
+midir = "0.5"
+# nom-midi = "0.2"
+midly = "0.1"
