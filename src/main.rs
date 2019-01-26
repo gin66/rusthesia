@@ -39,6 +39,7 @@ fn run() -> Result<(), Box<Error>> {
     // 88 note piano range from A0 to C8
     let left_key = 21;
     let right_key = 108;
+    let shift_key: i8 = -2;
 
     let midi = include_bytes!("../Forrest Gump_Feather Theme.mid");
     let smf: midly::Smf<Vec<midly::Event>>=midly::Smf::read(midi).unwrap();
@@ -53,7 +54,8 @@ fn run() -> Result<(), Box<Error>> {
     let mut tracks = vec![];
     tracks.push( (0,smf.tracks[1].iter(), None) );
     tracks.push( (0,smf.tracks[2].iter(), None) );
-    let mut timeline = vec![(0,vec![])];
+    let mut timeline = vec![(0,vec![],vec![false; 128])];
+    let mut note_state = vec![false;128];
     loop {
         if tracks.len() > 1 {
             tracks.sort_by_key(|x| u32::max_value()-x.0);
@@ -61,10 +63,19 @@ fn run() -> Result<(), Box<Error>> {
         if let Some( (t,mut t_iter, m) ) = tracks.pop() {
             let n = timeline.len()-1;
             if t > timeline[n].0 {
-                timeline.push( (t,vec![]) );
+                timeline.push( (t,vec![],note_state.clone()) );
             }
             let n = timeline.len()-1;
             timeline[n].1.push(m.clone());
+            match m {
+                Some(midly::MidiMessage::NoteOn(p1,p2)) => {
+                    note_state[(p1.as_int() as i8+shift_key) as usize] = p2.as_int() > 0;
+                },
+                Some(midly::MidiMessage::NoteOff(p1,p2)) => {
+                    note_state[(p1.as_int() as i8+shift_key) as usize] = false;
+                },
+                m => println!("=> {:#?}",m)
+            }
             if let Some(ev) = t_iter.next() {
                 let dt = ev.delta.as_int() * tref / 120 / 4;
                 if let midly::EventKind::Midi{channel: _c,message: m} = ev.kind {
@@ -123,28 +134,29 @@ fn run() -> Result<(), Box<Error>> {
     canvas.clear();
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut i = 0;
 
-    let mut note_on = vec![false; 128];
+    let into_future_ms = 3_000;
 
     let mut realtime = 0;
     let mut next_head_pos = 0;
+    let mut curr_pos = 0;
     'running: loop {
         if next_head_pos < timeline.len() {
             if timeline[next_head_pos].0 <= realtime {
                 for m in timeline[next_head_pos].1.iter() {
                     match m {
                         Some(midly::MidiMessage::NoteOn(p1,p2)) => {
-                            note_on[p1.as_int() as usize] = p2.as_int() > 0;
-                            conn_out.send(&[0x90, p1.as_int(), p2.as_int()]).unwrap()
+                            conn_out.send(&[0x90, (p1.as_int() as i8+shift_key) as u8,
+                                            p2.as_int()]).unwrap()
                         },
                         Some(midly::MidiMessage::NoteOff(p1,p2)) => {
-                            note_on[p1.as_int() as usize] = false;
-                            conn_out.send(&[0x80, p1.as_int(), p2.as_int()]).unwrap()
+                            conn_out.send(&[0x80, (p1.as_int() as i8+shift_key) as u8, 
+                                            p2.as_int()]).unwrap()
                         },
                         m => println!("=> {:#?}",m)
                     }
                 }
+                curr_pos = next_head_pos;
                 next_head_pos += 1;
             }
         }
@@ -152,15 +164,15 @@ fn run() -> Result<(), Box<Error>> {
             break;
         }
 
-        canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
+        canvas.set_draw_color(Color::RGB(100, 100, 100));
         canvas.clear();
 
-        i = (i + 1) % 255;
         let rec = canvas.viewport();
         let mut black_keys = vec![];
         let mut white_keys = vec![];
         let mut black_keys_on = vec![];
         let mut white_keys_on = vec![];
+        let mut traces = vec![];
 
         let left_white_key = key_to_white(left_key);
         let right_white_key = key_to_white(right_key);
@@ -186,7 +198,8 @@ fn run() -> Result<(), Box<Error>> {
                         white_key_width,
                         white_key_height
                         );
-                    if note_on[key as usize] {
+                    traces.push(r.clone());
+                    if timeline[curr_pos].2[key as usize] {
                         white_keys_on.push(r);
                     }
                     else {
@@ -210,7 +223,8 @@ fn run() -> Result<(), Box<Error>> {
                         black_key_width,
                         black_key_height
                         );
-                    if note_on[key as usize] {
+                    traces.push(r.clone());
+                    if timeline[curr_pos].2[key as usize] {
                         black_keys_on.push(r);
                     }
                     else {
@@ -230,6 +244,31 @@ fn run() -> Result<(), Box<Error>> {
         canvas.fill_rects(&black_keys).unwrap();
         canvas.set_draw_color(Color::RGB(0, 0, 255));
         canvas.fill_rects(&black_keys_on).unwrap();
+
+        let mut pos_to = curr_pos;
+        while pos_to < timeline.len()-1 {
+            pos_to += 1;
+            if timeline[pos_to].0 > realtime + into_future_ms {
+                break;
+            }
+        }
+        for key in left_key..=right_key {
+            let y_bottom = rec.bottom() - white_key_height as i32;
+            let mut last_y = y_bottom;
+            let mut t_rect = traces.remove(0);
+            for p in curr_pos..=pos_to {
+                let p_t = timeline[p].0;
+                let p_t = p_t.max(realtime).min(realtime+into_future_ms);
+                let new_y = (realtime+into_future_ms - p_t) as i32 *y_bottom / into_future_ms as i32;
+                if timeline[p].2[key as usize] {
+                    t_rect.set_height((last_y - new_y) as u32);
+                    t_rect.set_bottom(last_y);
+                    canvas.set_draw_color(Color::RGB(0, 255, 255));
+                    canvas.fill_rect(t_rect).unwrap();
+                }
+                last_y = new_y;
+            }
+        }
 
         let mut renderer =
             SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
@@ -256,7 +295,7 @@ fn run() -> Result<(), Box<Error>> {
         if next_head_pos < timeline.len() {
             let dt = timeline[next_head_pos].0 - realtime;
             if dt > 0 {
-                let dt = dt.min(10);
+                let dt = dt.min(25);
                 sleep(Duration::from_millis(dt as u64));
                 realtime += dt;
             }
