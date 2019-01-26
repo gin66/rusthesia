@@ -113,10 +113,12 @@ fn run() -> Result<(), Box<Error>> {
         let nr_white_keys = right_white_key + 1 - left_white_key;
 
         let white_key_width = rec.width() / nr_white_keys - 1;
-        let black_key_width = white_key_width * 5/7;
+        let black_key_width = white_key_width * 11_00/22_15;
         let white_key_space = 1;
-        let white_key_height = rec.height() / 5;
-        let black_key_height = white_key_height * 2 / 3;
+        let white_key_height = white_key_width * 126_27 / 22_15;
+        let black_key_height = white_key_height * 80 / (80 + 45);
+        let black_cde_off_center = (13_97+11_00-22_15)*white_key_width / 22_15;
+        let black_fgah_off_center = (13_08+11_00-22_15)*white_key_width / 22_15;
         let part_width = (white_key_width+white_key_space) * nr_white_keys - white_key_space;
         let offset_x = (rec.left() + rec.right() - part_width as i32)/2
                         - left_white_key as i32 * (white_key_width + white_key_space) as i32;
@@ -137,11 +139,19 @@ fn run() -> Result<(), Box<Error>> {
                         white_keys.push(r);
                     }
                 },
-                1 | 3 | 6 | 8 | 10 => {
+                1 | 3 | 6 | 8 | 10 => { // black keys
                     let nx = key_to_white(key);
+                    let mut left_x = (white_key_width - (black_key_width-white_key_space)/2
+                                        + nx * white_key_width + nx * white_key_space) as i32;
+                    match key % 12 {
+                        1 => left_x -= black_cde_off_center as i32,
+                        3 => left_x += black_cde_off_center as i32,
+                        6 => left_x -= black_fgah_off_center as i32,
+                        10 => left_x += black_fgah_off_center as i32,
+                        _ => ()
+                    }
                     let r = sdl2::rect::Rect::new(
-                        offset_x + (white_key_width - (black_key_width-white_key_space)/2
-                                        + nx * white_key_width + nx * white_key_space) as i32,
+                        offset_x + left_x,
                         rec.bottom()-white_key_height as i32,
                         black_key_width,
                         black_key_height
