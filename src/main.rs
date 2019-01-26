@@ -9,6 +9,10 @@ use log::LevelFilter;
 use midly;
 use midir::MidiOutput;
 
+use sdl2::pixels::Color;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+
 fn main() {
     match run() {
         Ok(_) => (),
@@ -57,8 +61,85 @@ fn run() -> Result<(), Box<Error>> {
     tracks.push( (0,smf.tracks[1].iter(), None) );
     tracks.push( (0,smf.tracks[2].iter(), None) );
 
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+ 
+    let window = video_subsystem.window("rust-sdl2 demo", 800, 600)
+        .position_centered()
+        .resizable()
+        .build()
+        .unwrap();
+ 
+    let mut canvas = window.into_canvas().build().unwrap();
+ 
+    canvas.set_draw_color(Color::RGB(0, 255, 255));
+    canvas.clear();
+    canvas.present();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut i = 0;
+
     let mut realtime = 0;
-    loop {
+    'running: loop {
+        canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
+        canvas.clear();
+
+        i = (i + 1) % 255;
+        let rec = canvas.viewport();
+        let mut black_keys = vec![];
+        let mut white_keys = vec![];
+
+        let white_key_width = rec.width() / 7 / 5 - 1;
+        let black_key_width = white_key_width * 5/7;
+        let white_key_space = 1;
+        let white_key_height = rec.height() / 5;
+        let black_key_height = white_key_height * 2 / 3;
+        let part_width = (white_key_width+white_key_space) * (7*5) - white_key_space;
+        let offset_x = rec.left() + (rec.width() - part_width) as i32 / 2;
+        for key in 0..60 {
+            match key % 12 {
+                n @ 0 | n @ 2 | n @ 4 | n @ 5 | n @ 7 | n @ 9 | n @ 11 => {
+                    let nx = (n+1) / 2 + (key/12)*7;
+                    let r = sdl2::rect::Rect::new(
+                        offset_x + (nx * white_key_width + nx * white_key_space) as i32,
+                        rec.bottom()-white_key_height as i32,
+                        white_key_width,
+                        white_key_height
+                        );
+                    white_keys.push(r);
+                },
+                n @ 1 | n @ 3 | n @ 6 | n @ 8 | n @ 10 => {
+                    let nx = n / 2 + (key/12)*7;
+                    let r = sdl2::rect::Rect::new(
+                        offset_x + (white_key_width - (black_key_width-white_key_space)/2
+                                        + nx * white_key_width + nx * white_key_space) as i32,
+                        rec.bottom()-white_key_height as i32,
+                        black_key_width,
+                        black_key_height
+                        );
+                    black_keys.push(r);
+                },
+                _ => ()
+            }
+        }
+        
+        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        canvas.fill_rects(&white_keys);
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.fill_rects(&black_keys);
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit {..} |
+                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    break 'running
+                },
+                _ => {}
+            }
+        }
+        // The rest of the game loop goes here...
+
+        canvas.present();
+
         if tracks.len() > 1 {
             tracks.sort_by_key(|x| u32::max_value()-x.0);
         }
