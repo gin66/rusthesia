@@ -94,6 +94,8 @@ fn run() -> Result<(), Box<Error>> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut i = 0;
 
+    let mut note_on = vec![false; 128];
+
     let mut realtime = 0;
     'running: loop {
         canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
@@ -103,6 +105,8 @@ fn run() -> Result<(), Box<Error>> {
         let rec = canvas.viewport();
         let mut black_keys = vec![];
         let mut white_keys = vec![];
+        let mut black_keys_on = vec![];
+        let mut white_keys_on = vec![];
 
         let left_white_key = key_to_white(left_key);
         let right_white_key = key_to_white(right_key);
@@ -126,7 +130,12 @@ fn run() -> Result<(), Box<Error>> {
                         white_key_width,
                         white_key_height
                         );
-                    white_keys.push(r);
+                    if note_on[key as usize] {
+                        white_keys_on.push(r);
+                    }
+                    else {
+                        white_keys.push(r);
+                    }
                 },
                 1 | 3 | 6 | 8 | 10 => {
                     let nx = key_to_white(key);
@@ -137,16 +146,26 @@ fn run() -> Result<(), Box<Error>> {
                         black_key_width,
                         black_key_height
                         );
-                    black_keys.push(r);
+                    if note_on[key as usize] {
+                        black_keys_on.push(r);
+                    }
+                    else {
+                        black_keys.push(r);
+                    }
                 },
                 _ => ()
             }
         }
         
-        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        canvas.set_draw_color(Color::RGB(200, 200, 200));
         canvas.fill_rects(&white_keys);
+        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        canvas.fill_rects(&white_keys_on);
+
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.fill_rects(&black_keys);
+        canvas.set_draw_color(Color::RGB(0, 0, 255));
+        canvas.fill_rects(&black_keys_on);
 
         for event in event_pump.poll_iter() {
             match event {
@@ -170,10 +189,14 @@ fn run() -> Result<(), Box<Error>> {
                 realtime = t;
             }
             match m {
-                Some(midly::MidiMessage::NoteOn(p1,p2)) =>
-                    conn_out.send(&[0x90, p1.as_int(), p2.as_int()]).unwrap(),
-                Some(midly::MidiMessage::NoteOff(p1,p2)) =>
-                    conn_out.send(&[0x80, p1.as_int(), p2.as_int()]).unwrap(),
+                Some(midly::MidiMessage::NoteOn(p1,p2)) => {
+                    note_on[p1.as_int() as usize] = p2.as_int() > 0;
+                    conn_out.send(&[0x90, p1.as_int(), p2.as_int()]).unwrap()
+                },
+                Some(midly::MidiMessage::NoteOff(p1,p2)) => {
+                    note_on[p1.as_int() as usize] = false;
+                    conn_out.send(&[0x80, p1.as_int(), p2.as_int()]).unwrap()
+                },
                 m => 
                     println!("=> {:#?}",m)
             }
