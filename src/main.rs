@@ -20,8 +20,24 @@ fn main() {
     }
 }
 
+fn key_to_white(key: u32) -> u32 {
+    match key % 12 {
+        n @ 0 | n @ 2 | n @ 4 | n @ 5 | n @ 7 | n @ 9 | n @ 11 => 
+            (n+1) / 2 + (key/12)*7
+        ,
+        n @ 1 | n @ 3 | n @ 6 | n @ 8 | n @ 10 => 
+            n / 2 + (key/12)*7,
+        _ => panic!("wrong value")
+    }
+}
+
 fn run() -> Result<(), Box<Error>> {
     simple_logging::log_to_stderr(LevelFilter::Trace);
+
+    // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
+    // 88 note piano range from A0 to C8
+    let left_key = 21;
+    let right_key = 108;
 
     let midi = include_bytes!("../Forrest Gump_Feather Theme.mid");
     let smf: midly::Smf<Vec<midly::Event>>=midly::Smf::read(midi).unwrap();
@@ -88,17 +104,22 @@ fn run() -> Result<(), Box<Error>> {
         let mut black_keys = vec![];
         let mut white_keys = vec![];
 
-        let white_key_width = rec.width() / 7 / 5 - 1;
+        let left_white_key = key_to_white(left_key);
+        let right_white_key = key_to_white(right_key);
+        let nr_white_keys = right_white_key + 1 - left_white_key;
+
+        let white_key_width = rec.width() / nr_white_keys - 1;
         let black_key_width = white_key_width * 5/7;
         let white_key_space = 1;
         let white_key_height = rec.height() / 5;
         let black_key_height = white_key_height * 2 / 3;
-        let part_width = (white_key_width+white_key_space) * (7*5) - white_key_space;
-        let offset_x = rec.left() + (rec.width() - part_width) as i32 / 2;
-        for key in 0..60 {
+        let part_width = (white_key_width+white_key_space) * nr_white_keys - white_key_space;
+        let offset_x = (rec.left() + rec.right() - part_width as i32)/2
+                        - left_white_key as i32 * (white_key_width + white_key_space) as i32;
+        for key in left_key..=right_key {
             match key % 12 {
-                n @ 0 | n @ 2 | n @ 4 | n @ 5 | n @ 7 | n @ 9 | n @ 11 => {
-                    let nx = (n+1) / 2 + (key/12)*7;
+                0 | 2 | 4 | 5 | 7 | 9 | 11 => {
+                    let nx = key_to_white(key);
                     let r = sdl2::rect::Rect::new(
                         offset_x + (nx * white_key_width + nx * white_key_space) as i32,
                         rec.bottom()-white_key_height as i32,
@@ -107,8 +128,8 @@ fn run() -> Result<(), Box<Error>> {
                         );
                     white_keys.push(r);
                 },
-                n @ 1 | n @ 3 | n @ 6 | n @ 8 | n @ 10 => {
-                    let nx = n / 2 + (key/12)*7;
+                1 | 3 | 6 | 8 | 10 => {
+                    let nx = key_to_white(key);
                     let r = sdl2::rect::Rect::new(
                         offset_x + (white_key_width - (black_key_width-white_key_space)/2
                                         + nx * white_key_width + nx * white_key_space) as i32,
