@@ -12,6 +12,7 @@ use midir::MidiOutput;
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2_unifont::renderer::{FormattedRenderer, SurfaceRenderer};
 
 fn main() {
     match run() {
@@ -42,7 +43,45 @@ fn run() -> Result<(), Box<Error>> {
     let midi = include_bytes!("../Forrest Gump_Feather Theme.mid");
     let smf: midly::Smf<Vec<midly::Event>>=midly::Smf::read(midi).unwrap();
     println!("{:#?}", smf);
+    println!("{:#?}",smf.header.timing);
+    let tref = match smf.header.timing {
+        midly::Timing::Metrical(x) => x.as_int() as u32,
+        midly::Timing::Timecode(_x,_y) => 1
+    };
 
+    // Reorder all midi message on timeline
+    let mut tracks = vec![];
+    tracks.push( (0,smf.tracks[1].iter(), None) );
+    tracks.push( (0,smf.tracks[2].iter(), None) );
+    let mut timeline = vec![(0,vec![])];
+    loop {
+        if tracks.len() > 1 {
+            tracks.sort_by_key(|x| u32::max_value()-x.0);
+        }
+        if let Some( (t,mut t_iter, m) ) = tracks.pop() {
+            let n = timeline.len()-1;
+            if t > timeline[n].0 {
+                timeline.push( (t,vec![]) );
+            }
+            let n = timeline.len()-1;
+            timeline[n].1.push(m.clone());
+            if let Some(ev) = t_iter.next() {
+                let dt = ev.delta.as_int() * tref / 120 / 4;
+                if let midly::EventKind::Midi{channel: _c,message: m} = ev.kind {
+                    tracks.push( (t+dt,t_iter, Some(m)) );
+                }
+                else {
+                    println!("=> {:#?}",ev);
+                    tracks.push( (t+dt,t_iter, None) );
+                }
+            }
+        }
+        else {
+            break;
+        }
+    }
+
+    println!("output");
     let midi_out = MidiOutput::new("My Test Output")?;
     
     // Get an output port (read from console if multiple are available)
@@ -68,15 +107,6 @@ fn run() -> Result<(), Box<Error>> {
     println!("\nOpening connection");
     let mut conn_out = midi_out.connect(out_port, "midir-test")?;
     println!("Connection open");
-    println!("{:#?}",smf.header.timing);
-    let tref = match smf.header.timing {
-        midly::Timing::Metrical(x) => x.as_int() as u32,
-        midly::Timing::Timecode(x,y) => 1
-    };
-    let mut tracks = vec![];
-    tracks.push( (0,smf.tracks[1].iter(), None) );
-    tracks.push( (0,smf.tracks[2].iter(), None) );
-
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
  
@@ -87,7 +117,8 @@ fn run() -> Result<(), Box<Error>> {
         .unwrap();
  
     let mut canvas = window.into_canvas().build().unwrap();
- 
+    let texture_creator = canvas.texture_creator();
+
     canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
     canvas.present();
@@ -97,7 +128,30 @@ fn run() -> Result<(), Box<Error>> {
     let mut note_on = vec![false; 128];
 
     let mut realtime = 0;
+    let mut next_head_pos = 0;
     'running: loop {
+        if next_head_pos < timeline.len() {
+            if timeline[next_head_pos].0 <= realtime {
+                for m in timeline[next_head_pos].1.iter() {
+                    match m {
+                        Some(midly::MidiMessage::NoteOn(p1,p2)) => {
+                            note_on[p1.as_int() as usize] = p2.as_int() > 0;
+                            conn_out.send(&[0x90, p1.as_int(), p2.as_int()]).unwrap()
+                        },
+                        Some(midly::MidiMessage::NoteOff(p1,p2)) => {
+                            note_on[p1.as_int() as usize] = false;
+                            conn_out.send(&[0x80, p1.as_int(), p2.as_int()]).unwrap()
+                        },
+                        m => println!("=> {:#?}",m)
+                    }
+                }
+                next_head_pos += 1;
+            }
+        }
+        else {
+            break;
+        }
+
         canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
         canvas.clear();
 
@@ -168,14 +222,23 @@ fn run() -> Result<(), Box<Error>> {
         }
         
         canvas.set_draw_color(Color::RGB(200, 200, 200));
-        canvas.fill_rects(&white_keys);
+        canvas.fill_rects(&white_keys).unwrap();
         canvas.set_draw_color(Color::RGB(255, 255, 255));
-        canvas.fill_rects(&white_keys_on);
+        canvas.fill_rects(&white_keys_on).unwrap();
 
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rects(&black_keys);
+        canvas.fill_rects(&black_keys).unwrap();
         canvas.set_draw_color(Color::RGB(0, 0, 255));
-        canvas.fill_rects(&black_keys_on);
+        canvas.fill_rects(&black_keys_on).unwrap();
+
+        let mut renderer =
+            SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
+        renderer.scale = 1;
+        let surface = renderer.draw(&format!("{} ms",realtime)).unwrap();
+        let demo_tex = texture_creator
+            .create_texture_from_surface(surface)
+            .unwrap();
+        canvas.copy(&demo_tex, None, sdl2::rect::Rect::new(10,10,100,20)).unwrap();
 
         for event in event_pump.poll_iter() {
             match event {
@@ -190,36 +253,12 @@ fn run() -> Result<(), Box<Error>> {
 
         canvas.present();
 
-        if tracks.len() > 1 {
-            tracks.sort_by_key(|x| u32::max_value()-x.0);
-        }
-        if let Some( (t,mut t_iter, m) ) = tracks.pop() {
-            if t > realtime {
-                sleep(Duration::from_millis((t-realtime) as u64));
-                realtime = t;
-            }
-            match m {
-                Some(midly::MidiMessage::NoteOn(p1,p2)) => {
-                    note_on[p1.as_int() as usize] = p2.as_int() > 0;
-                    conn_out.send(&[0x90, p1.as_int(), p2.as_int()]).unwrap()
-                },
-                Some(midly::MidiMessage::NoteOff(p1,p2)) => {
-                    note_on[p1.as_int() as usize] = false;
-                    conn_out.send(&[0x80, p1.as_int(), p2.as_int()]).unwrap()
-                },
-                m => 
-                    println!("=> {:#?}",m)
-            }
-            if let Some(ev) = t_iter.next() {
-                let dt = ev.delta.as_int() * tref / 120 / 4;
-                println!("dt={} ms",dt);
-                if let midly::EventKind::Midi{channel: _c,message: m} = ev.kind {
-                    tracks.push( (t+dt,t_iter, Some(m)) );
-                }
-                else {
-                    println!("=> {:#?}",ev);
-                    tracks.push( (t+dt,t_iter, None) );
-                }
+        if next_head_pos < timeline.len() {
+            let dt = timeline[next_head_pos].0 - realtime;
+            if dt > 0 {
+                let dt = dt.min(10);
+                sleep(Duration::from_millis(dt as u64));
+                realtime += dt;
             }
         }
     }
