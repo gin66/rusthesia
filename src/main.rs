@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io::{stdin, stdout, Write};
 use std::thread::sleep;
 use std::time::Duration;
@@ -14,13 +13,6 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2_unifont::renderer::SurfaceRenderer;
 
-fn main() {
-    match run() {
-        Ok(_) => (),
-        Err(err) => println!("Error: {}", err.description()),
-    }
-}
-
 fn key_to_white(key: u32) -> u32 {
     match key % 12 {
         n @ 0 | n @ 2 | n @ 4 | n @ 5 | n @ 7 | n @ 9 | n @ 11 => (n + 1) / 2 + (key / 12) * 7,
@@ -29,7 +21,7 @@ fn key_to_white(key: u32) -> u32 {
     }
 }
 
-fn run() -> Result<(), Box<Error>> {
+fn main() -> Result<(), Box<std::error::Error>> {
     simple_logging::log_to_stderr(LevelFilter::Trace);
 
     // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
