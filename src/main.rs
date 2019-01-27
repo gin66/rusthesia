@@ -13,6 +13,13 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2_unifont::renderer::SurfaceRenderer;
 
+#[derive(Copy,Clone)]
+enum NoteState {
+    Pressed,
+    Keep,
+    Off
+}
+
 fn key_to_white(key: u32) -> u32 {
     match key % 12 {
         n @ 0 | n @ 2 | n @ 4 | n @ 5 | n @ 7 | n @ 9 | n @ 11 => (n + 1) / 2 + (key / 12) * 7,
@@ -33,7 +40,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         (21 + 12, 108 - 12)
     };
 
-    let shift_key: i8 = -2;
+    let shift_key: i8 = 2;
 
     let midi = include_bytes!("../Forrest Gump_Feather Theme.mid");
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(midi).unwrap();
@@ -48,7 +55,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut tracks = vec![];
     tracks.push((0, smf.tracks[1].iter(), None));
     tracks.push((0, smf.tracks[2].iter(), None));
-    let mut timeline = vec![(0, vec![], vec![false; 128])];
+    let mut timeline = vec![(0, vec![], vec![NoteState::Off; 128])];
     loop {
         if tracks.len() > 1 {
             tracks.sort_by_key(|x| u32::max_value() - x.0);
@@ -56,16 +63,26 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if let Some((t, mut t_iter, m)) = tracks.pop() {
             let n = timeline.len() - 1;
             if t > timeline[n].0 {
-                timeline.push((t, vec![], timeline[timeline.len() - 1].2.clone()));
+                let note_state = timeline[timeline.len()-1].2.iter()
+                                    .map(|ns| match ns {
+                                        NoteState::Pressed | NoteState::Keep => NoteState::Keep,
+                                        NoteState::Off => NoteState::Off
+                                    }).collect::<Vec<_>>();
+                timeline.push((t, vec![], note_state));
             }
             let n = timeline.len() - 1;
             timeline[n].1.push(m.clone());
             match m {
                 Some(midly::MidiMessage::NoteOn(p1, p2)) => {
-                    timeline[n].2[(p1.as_int() as i8 + shift_key) as usize] = p2.as_int() > 0;
+                    timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
+                        NoteState::Pressed
+                    }
+                    else {
+                        NoteState::Off 
+                    };
                 }
                 Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
-                    timeline[n].2[(p1.as_int() as i8 + shift_key) as usize] = false;
+                    timeline[n].2[p1.as_int() as usize] = NoteState::Off;
                 }
                 m => println!("=> {:#?}", m),
             }
@@ -147,10 +164,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 for m in timeline[curr_pos].1.iter() {
                     match m {
                         Some(midly::MidiMessage::NoteOn(p1, p2)) => conn_out
-                            .send(&[0x90, (p1.as_int() as i8 + shift_key) as u8, p2.as_int()])
+                            .send(&[0x90, (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
                             .unwrap(),
                         Some(midly::MidiMessage::NoteOff(p1, p2)) => conn_out
-                            .send(&[0x80, (p1.as_int() as i8 + shift_key) as u8, p2.as_int()])
+                            .send(&[0x80, (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
                             .unwrap(),
                         m => println!("=> {:#?}", m),
                     }
@@ -196,10 +213,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         white_key_height,
                     );
                     traces.push(r.clone());
-                    if timeline[curr_pos].2[key as usize] {
-                        white_keys_on.push(r);
-                    } else {
-                        white_keys.push(r);
+                    match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
+                        NoteState::Pressed | NoteState::Keep => white_keys_on.push(r),
+                        NoteState::Off => white_keys.push(r)
                     }
                 }
                 1 | 3 | 6 | 8 | 10 => {
@@ -222,10 +238,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         black_key_height,
                     );
                     traces.push(r.clone());
-                    if timeline[curr_pos].2[key as usize] {
-                        black_keys_on.push(r);
-                    } else {
-                        black_keys.push(r);
+                    match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
+                        NoteState::Pressed | NoteState::Keep => black_keys_on.push(r),
+                        NoteState::Off => black_keys.push(r)
                     }
                 }
                 _ => (),
@@ -253,22 +268,38 @@ fn main() -> Result<(), Box<std::error::Error>> {
             let y_bottom = rec.bottom() - white_key_height as i32;
             let mut last_y = y_bottom;
             let mut t_rect = traces.remove(0);
-            let mut state = false;
+            let mut state = NoteState::Off;
             for p in curr_pos..=pos_to {
                 let p_t = timeline[p].0;
                 let p_t = p_t.max(realtime).min(realtime + into_future_ms);
                 let new_y =
                     (realtime + into_future_ms - p_t) as i32 * y_bottom / into_future_ms as i32;
-                let new_state = timeline[p].2[key as usize];
-                if state && !new_state {
-                    t_rect.set_height((last_y - new_y) as u32);
-                    t_rect.set_bottom(last_y);
-                    canvas.set_draw_color(Color::RGB(0, 255, 255));
-                    canvas.fill_rect(t_rect).unwrap();
-                }
-                if state != new_state {
-                    last_y = new_y;
-                }
+                let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
+                match (state,new_state) {
+                    (NoteState::Pressed,NoteState::Keep) => (),
+                    (NoteState::Pressed,NoteState::Off) |
+                    (NoteState::Keep,NoteState::Off) => {
+                        t_rect.set_height((last_y - new_y) as u32);
+                        t_rect.set_bottom(last_y);
+                        canvas.set_draw_color(Color::RGB(0, 255, 255));
+                        canvas.fill_rect(t_rect).unwrap();
+                        last_y = new_y;
+                    },
+                    (NoteState::Pressed,NoteState::Pressed) |
+                    (NoteState::Keep,NoteState::Pressed) => {
+                        t_rect.set_height((last_y - new_y - 2) as u32);
+                        t_rect.set_bottom(last_y);
+                        canvas.set_draw_color(Color::RGB(0, 255, 255));
+                        canvas.fill_rect(t_rect).unwrap();
+                        last_y = new_y;
+                    },
+                    (NoteState::Keep,NoteState::Keep) => (),
+                    (NoteState::Off,NoteState::Keep) | 
+                    (NoteState::Off,NoteState::Pressed) |
+                    (NoteState::Off,NoteState::Off) => {
+                        last_y = new_y;
+                    },
+                };
                 state = new_state;
             }
         }
