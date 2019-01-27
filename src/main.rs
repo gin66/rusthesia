@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         (21 + 12, 108 - 12)
     };
 
-    let shift_key: i8 = 2;
+    let mut shift_key: i8 = 2;
 
     let midi = include_bytes!("../Forrest Gump_Feather Theme.mid");
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(midi).unwrap();
@@ -323,12 +323,21 @@ fn main() -> Result<(), Box<std::error::Error>> {
         let mut renderer =
             SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
         renderer.scale = 1;
+
         let surface = renderer.draw(&format!("{} ms", realtime)).unwrap();
         let demo_tex = texture_creator
             .create_texture_from_surface(surface)
             .unwrap();
         canvas
             .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 10, 100, 20))
+            .unwrap();
+
+        let surface = renderer.draw(&format!("shift={}", shift_key)).unwrap();
+        let demo_tex = texture_creator
+            .create_texture_from_surface(surface)
+            .unwrap();
+        canvas
+            .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 30, 100, 20))
             .unwrap();
 
         canvas.present();
@@ -353,7 +362,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     curr_pos = curr_pos.max(10) - 10;
                     next_head_pos = curr_pos + 1;
                     realtime = timeline[curr_pos].0;
-                }
+                },
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => shift_key += 1,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => shift_key -= 1,
                 _ => {}
             }
         }
