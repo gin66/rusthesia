@@ -12,6 +12,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2_unifont::renderer::SurfaceRenderer;
+use sdl2::gfx::primitives::DrawRenderer;
 
 #[derive(Copy,Clone)]
 enum NoteState {
@@ -202,6 +203,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         let part_width = (white_key_width + white_key_space) * nr_white_keys - white_key_space;
         let offset_x = (rec.left() + rec.right() - part_width as i32) / 2
             - left_white_key as i32 * (white_key_width + white_key_space) as i32;
+        let box_rounding = (black_key_width / 2 - 1) as i16;
         for key in left_key..=right_key {
             match key % 12 {
                 0 | 2 | 4 | 5 | 7 | 9 | 11 => {
@@ -282,7 +284,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         t_rect.set_height((last_y - new_y) as u32);
                         t_rect.set_bottom(last_y);
                         canvas.set_draw_color(Color::RGB(0, 255, 255));
-                        canvas.fill_rect(t_rect).unwrap();
+                        canvas.rounded_box(
+                                t_rect.left() as i16,
+                                t_rect.bottom() as i16,
+                                t_rect.right() as i16,
+                                t_rect.top() as i16,
+                                box_rounding,
+                                Color::RGB(0,255,255)
+                            ).unwrap();
                         last_y = new_y;
                     },
                     (NoteState::Pressed,NoteState::Pressed) |
@@ -290,7 +299,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         t_rect.set_height((last_y - new_y - 2) as u32);
                         t_rect.set_bottom(last_y);
                         canvas.set_draw_color(Color::RGB(0, 255, 255));
-                        canvas.fill_rect(t_rect).unwrap();
+                        canvas.rounded_box(
+                                t_rect.left() as i16,
+                                t_rect.bottom() as i16,
+                                t_rect.right() as i16,
+                                t_rect.top() as i16,
+                                box_rounding,
+                                Color::RGB(0,255,255)
+                            ).unwrap();
                         last_y = new_y;
                     },
                     (NoteState::Keep,NoteState::Keep) => (),
