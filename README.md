@@ -9,7 +9,6 @@ Synthesizer is not included. Instead midi messages will be sent by core audio on
 Here screenshot for current version:
 ![Screensho](screenshot.png)
 
-
 ## Installation
 
 ```
@@ -27,3 +26,17 @@ For help just execute
 ```
 rusthesia -h
 ```
+
+## Todo
+
+- Refactoring and code quality
+- Create video
+- Speed up by using e.g. one large sdl2 surface
+- Nicer looking output
+- Different color for the channels (left/right)
+- Native macos app with fruitbasket
+- and more...
+
+## Final Words
+
+The application works, but still this is a quick hack. In future refactoring will be necessary.

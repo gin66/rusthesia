@@ -1,7 +1,7 @@
-use std::io::{stdin, stdout, Write, Read};
+use std::fs::File;
+use std::io::{stdin, stdout, Read, Write};
 use std::thread::sleep;
 use std::time::Duration;
-use std::fs::File;
 
 use log::LevelFilter;
 use simple_logging;
@@ -9,21 +9,21 @@ use simple_logging;
 use midir::MidiOutput;
 use midly;
 
-use clap::{crate_version,crate_authors,value_t};
-use clap::{App,Arg};
+use clap::{crate_authors, crate_version, value_t};
+use clap::{App, Arg};
 use indoc::indoc;
 
 use sdl2::event::Event;
+use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2_unifont::renderer::SurfaceRenderer;
-use sdl2::gfx::primitives::DrawRenderer;
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 enum NoteState {
     Pressed,
     Keep,
-    Off
+    Off,
 }
 
 // http://www.rwgiangiulio.com/construction/manual/layout.jpg
@@ -40,9 +40,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
     simple_logging::log_to_stderr(LevelFilter::Trace);
 
     let matches = App::new("Rusthesia")
-                          .version(crate_version!())
-                          .author(crate_authors!("\n"))
-                          .about(indoc!("
+        .version(crate_version!())
+        .author(crate_authors!("\n"))
+        .about(indoc!(
+            "
                                     Reads midi files and creates piano notes waterfall.
 
                                     Valid key commands, while playing:
@@ -50,21 +51,28 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                         <Cursor-Right>  Transpose half tone higher
                                         <Cursor-Up>     Go back some time
                                         <Space>         Pause/continue playing
-                                        "))
-                          .arg(Arg::with_name("transpose")
-                               .short("t")
-                               .long("transpose")
-                               .takes_value(true)
-                               .default_value("0")
-                               .help("Set number of note steps to transpose"))
-                          .arg(Arg::with_name("RD64")
-                               .long("rd64")
-                               .help("Select 64 key Piano like Roland RD-64"))
-                          .arg(Arg::with_name("MIDI")
-                               .help("Sets the midi file to use")
-                               .required(true)
-                               .index(1))
-                          .get_matches();
+                                        "
+        ))
+        .arg(
+            Arg::with_name("transpose")
+                .short("t")
+                .long("transpose")
+                .takes_value(true)
+                .default_value("0")
+                .help("Set number of note steps to transpose"),
+        )
+        .arg(
+            Arg::with_name("RD64")
+                .long("rd64")
+                .help("Select 64 key Piano like Roland RD-64"),
+        )
+        .arg(
+            Arg::with_name("MIDI")
+                .help("Sets the midi file to use")
+                .required(true)
+                .index(1),
+        )
+        .get_matches();
 
     let mut f = File::open(matches.value_of("MIDI").unwrap())?;
     let mut midi = Vec::new();
@@ -82,7 +90,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
         // 88 note piano range from A0 to C8
         (21, 108)
     };
-
 
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi).unwrap();
     println!("{:#?}", smf);
@@ -104,11 +111,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if let Some((t, mut t_iter, m)) = tracks.pop() {
             let n = timeline.len() - 1;
             if t > timeline[n].0 {
-                let note_state = timeline[timeline.len()-1].2.iter()
-                                    .map(|ns| match ns {
-                                        NoteState::Pressed | NoteState::Keep => NoteState::Keep,
-                                        NoteState::Off => NoteState::Off
-                                    }).collect::<Vec<_>>();
+                let note_state = timeline[timeline.len() - 1]
+                    .2
+                    .iter()
+                    .map(|ns| match ns {
+                        NoteState::Pressed | NoteState::Keep => NoteState::Keep,
+                        NoteState::Off => NoteState::Off,
+                    })
+                    .collect::<Vec<_>>();
                 timeline.push((t, vec![], note_state));
             }
             let n = timeline.len() - 1;
@@ -117,9 +127,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 Some(midly::MidiMessage::NoteOn(p1, p2)) => {
                     timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
                         NoteState::Pressed
-                    }
-                    else {
-                        NoteState::Off 
+                    } else {
+                        NoteState::Off
                     };
                 }
                 Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
@@ -257,7 +266,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     traces.push(r.clone());
                     match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
                         NoteState::Pressed | NoteState::Keep => white_keys_on.push(r),
-                        NoteState::Off => white_keys.push(r)
+                        NoteState::Off => white_keys.push(r),
                     }
                 }
                 1 | 3 | 6 | 8 | 10 => {
@@ -282,7 +291,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     traces.push(r.clone());
                     match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
                         NoteState::Pressed | NoteState::Keep => black_keys_on.push(r),
-                        NoteState::Off => black_keys.push(r)
+                        NoteState::Off => black_keys.push(r),
                     }
                 }
                 _ => (),
@@ -317,44 +326,47 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 let new_y =
                     (realtime + into_future_ms - p_t) as i32 * y_bottom / into_future_ms as i32;
                 let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
-                match (state,new_state) {
-                    (NoteState::Pressed,NoteState::Keep) => (),
-                    (NoteState::Pressed,NoteState::Off) |
-                    (NoteState::Keep,NoteState::Off) => {
+                match (state, new_state) {
+                    (NoteState::Pressed, NoteState::Keep) => (),
+                    (NoteState::Pressed, NoteState::Off) | (NoteState::Keep, NoteState::Off) => {
                         t_rect.set_height((last_y - new_y) as u32);
                         t_rect.set_bottom(last_y);
                         canvas.set_draw_color(Color::RGB(0, 255, 255));
-                        canvas.rounded_box(
+                        canvas
+                            .rounded_box(
                                 t_rect.left() as i16,
                                 t_rect.bottom() as i16,
                                 t_rect.right() as i16,
                                 t_rect.top() as i16,
                                 box_rounding,
-                                Color::RGB(0,255,255)
-                            ).unwrap();
+                                Color::RGB(0, 255, 255),
+                            )
+                            .unwrap();
                         last_y = new_y;
-                    },
-                    (NoteState::Pressed,NoteState::Pressed) |
-                    (NoteState::Keep,NoteState::Pressed) => {
+                    }
+                    (NoteState::Pressed, NoteState::Pressed)
+                    | (NoteState::Keep, NoteState::Pressed) => {
                         t_rect.set_height((last_y - new_y - 2) as u32);
                         t_rect.set_bottom(last_y);
                         canvas.set_draw_color(Color::RGB(0, 255, 255));
-                        canvas.rounded_box(
+                        canvas
+                            .rounded_box(
                                 t_rect.left() as i16,
                                 t_rect.bottom() as i16,
                                 t_rect.right() as i16,
                                 t_rect.top() as i16,
                                 box_rounding,
-                                Color::RGB(0,255,255)
-                            ).unwrap();
+                                Color::RGB(0, 255, 255),
+                            )
+                            .unwrap();
                         last_y = new_y;
-                    },
-                    (NoteState::Keep,NoteState::Keep) => (),
-                    (NoteState::Off,NoteState::Keep) | 
-                    (NoteState::Off,NoteState::Pressed) |
-                    (NoteState::Off,NoteState::Off) => {
+                    }
+                    (NoteState::Keep, NoteState::Keep) => (),
+                    (NoteState::Off, NoteState::Keep)
+                    | (NoteState::Off, NoteState::Pressed)
+                    | (NoteState::Off, NoteState::Off) => {
                         last_y = new_y;
-                    },
+                    }
                 };
                 state = new_state;
             }
@@ -394,7 +406,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     ..
                 } => {
                     paused = !paused;
-                },
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
@@ -402,7 +414,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     curr_pos = curr_pos.max(10) - 10;
                     next_head_pos = curr_pos + 1;
                     realtime = timeline[curr_pos].0;
-                },
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
