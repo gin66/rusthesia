@@ -9,7 +9,9 @@ use simple_logging;
 use midir::MidiOutput;
 use midly;
 
+use clap::{crate_version,crate_authors,value_t};
 use clap::{App,Arg};
+use indoc::indoc;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -37,27 +39,27 @@ fn key_to_white(key: u32) -> u32 {
 fn main() -> Result<(), Box<std::error::Error>> {
     simple_logging::log_to_stderr(LevelFilter::Trace);
 
-    // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
-    let (left_key, right_key) = if false {
-        // 88 note piano range from A0 to C8
-        (21, 108)
-    } else {
-        // RD-64 is A1 to C7
-        (21 + 12, 108 - 12)
-    };
-
-    let mut shift_key: i8 = 2;
-
     let matches = App::new("Rusthesia")
-                          .version("0.1.0")
-                          .author("Jochen Kiemes <jochen@kiemes.de>")
-                          .about("Reads midi files and creates piano notes waterfall.")
-                          .arg(Arg::with_name("")
-                               .short("c")
-                               .long("config")
-                               .value_name("FILE")
-                               .help("Sets a custom config file")
-                               .takes_value(true))
+                          .version(crate_version!())
+                          .author(crate_authors!("\n"))
+                          .about(indoc!("
+                                    Reads midi files and creates piano notes waterfall.
+
+                                    Valid key commands, while playing:
+                                        <Cursor-Left>   Transpose half tone lower
+                                        <Cursor-Right>  Transpose half tone higher
+                                        <Cursor-Up>     Go back some time
+                                        <Space>         Pause/continue playing
+                                        "))
+                          .arg(Arg::with_name("transpose")
+                               .short("t")
+                               .long("transpose")
+                               .takes_value(true)
+                               .default_value("0")
+                               .help("Set number of note steps to transpose"))
+                          .arg(Arg::with_name("RD64")
+                               .long("rd64")
+                               .help("Select 64 key Piano like Roland RD-64"))
                           .arg(Arg::with_name("MIDI")
                                .help("Sets the midi file to use")
                                .required(true)
@@ -67,6 +69,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut f = File::open(matches.value_of("MIDI").unwrap())?;
     let mut midi = Vec::new();
     f.read_to_end(&mut midi)?;
+
+    let mut shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
+
+    let rd64 = matches.is_present("rg64");
+
+    // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
+    let (left_key, right_key) = if rd64 {
+        // RD-64 is A1 to C7
+        (21 + 12, 108 - 12)
+    } else {
+        // 88 note piano range from A0 to C8
+        (21, 108)
+    };
+
 
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi).unwrap();
     println!("{:#?}", smf);

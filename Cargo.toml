@@ -11,6 +11,7 @@ midir = "0.5"
 midly = "0.1"
 sdl2-unifont = "1.0"
 clap = "2.32"
+indoc = "0.3"
 
 [dependencies.sdl2]
 version = "0.31"
