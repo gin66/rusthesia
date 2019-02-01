@@ -1,12 +1,15 @@
-use std::io::{stdin, stdout, Write};
+use std::io::{stdin, stdout, Write, Read};
 use std::thread::sleep;
 use std::time::Duration;
+use std::fs::File;
 
 use log::LevelFilter;
 use simple_logging;
 
 use midir::MidiOutput;
 use midly;
+
+use clap::{App,Arg};
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -20,6 +23,8 @@ enum NoteState {
     Keep,
     Off
 }
+
+// http://www.rwgiangiulio.com/construction/manual/layout.jpg
 
 fn key_to_white(key: u32) -> u32 {
     match key % 12 {
@@ -43,8 +48,27 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut shift_key: i8 = 2;
 
-    let midi = include_bytes!("../Forrest Gump_Feather Theme.mid");
-    let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(midi).unwrap();
+    let matches = App::new("Rusthesia")
+                          .version("0.1.0")
+                          .author("Jochen Kiemes <jochen@kiemes.de>")
+                          .about("Reads midi files and creates piano notes waterfall.")
+                          .arg(Arg::with_name("")
+                               .short("c")
+                               .long("config")
+                               .value_name("FILE")
+                               .help("Sets a custom config file")
+                               .takes_value(true))
+                          .arg(Arg::with_name("MIDI")
+                               .help("Sets the midi file to use")
+                               .required(true)
+                               .index(1))
+                          .get_matches();
+
+    let mut f = File::open(matches.value_of("MIDI").unwrap())?;
+    let mut midi = Vec::new();
+    f.read_to_end(&mut midi)?;
+
+    let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi).unwrap();
     println!("{:#?}", smf);
     println!("{:#?}", smf.header.timing);
     let tref = match smf.header.timing {
