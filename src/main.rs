@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
 
-    let rd64 = matches.is_present("rg64");
+    let rd64 = matches.is_present("RD64");
 
     // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
     let (left_key, right_key) = if rd64 {
