@@ -3,6 +3,12 @@ name = "rusthesia"
 version = "0.1.0"
 authors = ["Jochen Kiemes <jochen@kiemes.de>"]
 edition = "2018"
+license = "MIT"
+description = "Reads midi files and create piano notes waterfall."
+homepage = "https://github.com/gin66/rusthesia"
+repository = "https://github.com/gin66/rusthesia"
+keywords = ["music", "midi", "piano", "learning", "sdl2"]
+readme = "README.md"
 
 [dependencies]
 log = "0.4"
