@@ -76,14 +76,15 @@ In order to play the lower and show only the upper, use the following command:
 ## Todo
 
 - Refactoring and code quality
-- Bug: Long pressed keys (start before and end after visible region) are not drawn
 - Create video
+- Derive the waterfall directly from the midi tracks
 - Nicer looking output
-- Different color for the channels (left/right)
 - Native macos app with fruitbasket
 - Add pause before playing the midi
 - Handle all meta messages during playing
 - Change most of the prints into log-commands and enable logging per command line option
+- Do not exit on end
+- Allow shift by double finger gesture
 - and more...
 
 ## Final Words

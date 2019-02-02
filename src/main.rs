@@ -21,8 +21,8 @@ use sdl2_unifont::renderer::SurfaceRenderer;
 
 #[derive(Copy, Clone)]
 enum NoteState {
-    Pressed,
-    Keep,
+    Pressed(usize),
+    Keep(usize),
     Off,
 }
 
@@ -33,6 +33,13 @@ fn key_to_white(key: u32) -> u32 {
         n @ 0 | n @ 2 | n @ 4 | n @ 5 | n @ 7 | n @ 9 | n @ 11 => (n + 1) / 2 + (key / 12) * 7,
         n @ 1 | n @ 3 | n @ 6 | n @ 8 | n @ 10 => n / 2 + (key / 12) * 7,
         _ => panic!("wrong value"),
+    }
+}
+
+fn trk2col(trk: usize) -> Color {
+    match trk / 2 {
+        0 => Color::RGB(0, 255, 255),
+        _ => Color::RGB(255, 0, 255),
     }
 }
 
@@ -174,7 +181,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     for i in 0..smf.tracks.len() {
         let st = show_tracks.contains(&i);
         let pt = play_tracks.contains(&i);
-        tracks.push((0, 0, smf.tracks[i].iter(), None, st, pt));
+        tracks.push((0, 0, i, smf.tracks[i].iter(), None, st, pt));
     }
 
     let mut timeline = vec![(0, vec![], vec![NoteState::Off; 128])];
@@ -194,7 +201,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                         }
                                     });
         }
-        if let Some((t, ticks, mut t_iter, m, st, pt)) = tracks.pop() {
+        if let Some((t, ticks, i, mut t_iter, m, st, pt)) = tracks.pop() {
             let dt = match ticks as u64 {
                 0 => 0,
                 ticks => {
@@ -210,7 +217,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     .2
                     .iter()
                     .map(|ns| match ns {
-                        NoteState::Pressed | NoteState::Keep => NoteState::Keep,
+                        NoteState::Pressed(trk) | NoteState::Keep(trk) => NoteState::Keep(*trk),
                         NoteState::Off => NoteState::Off,
                     })
                     .collect::<Vec<_>>();
@@ -224,7 +231,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 match m {
                     Some(midly::MidiMessage::NoteOn(p1, p2)) => {
                         timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
-                            NoteState::Pressed
+                            NoteState::Pressed(i)
                         } else {
                             NoteState::Off
                         };
@@ -250,11 +257,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         channel: _c,
                         message: m,
                     } => {
-                        tracks.push((t, ev.delta.as_int(), t_iter, Some(m), st, pt));
+                        tracks.push((t, ev.delta.as_int(), i, t_iter, Some(m), st, pt));
                     }, 
                     _ => {
                         println!("=> {:#?}", ev);
-                        tracks.push((t, ev.delta.as_int(), t_iter, None, st, pt));
+                        tracks.push((t, ev.delta.as_int(), i, t_iter, None, st, pt));
                     }
                 }
             }
@@ -338,7 +345,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             break;
         }
 
-        canvas.set_draw_color(Color::RGB(100, 100, 100));
+        canvas.set_draw_color(Color::RGB(50, 50, 50));
         canvas.clear();
 
         let rec = canvas.viewport();
@@ -375,7 +382,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     );
                     traces.push(r.clone());
                     match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
-                        NoteState::Pressed | NoteState::Keep => white_keys_on.push(r),
+                        NoteState::Pressed(_) | NoteState::Keep(_) => white_keys_on.push(r),
                         NoteState::Off => white_keys.push(r),
                     }
                 }
@@ -400,7 +407,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     );
                     traces.push(r.clone());
                     match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
-                        NoteState::Pressed | NoteState::Keep => black_keys_on.push(r),
+                        NoteState::Pressed(_) | NoteState::Keep(_) => black_keys_on.push(r),
                         NoteState::Off => black_keys.push(r),
                     }
                 }
@@ -434,8 +441,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     let new_y = height - new_y;
                     let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
                     match (state, new_state) {
-                        (NoteState::Pressed, NoteState::Keep) => (),
-                        (NoteState::Pressed, NoteState::Off) | (NoteState::Keep, NoteState::Off) => {
+                        (NoteState::Pressed(_), NoteState::Keep(_)) => (),
+                        (NoteState::Pressed(trk), NoteState::Off)
+                            | (NoteState::Keep(trk), NoteState::Off) => {
                             t_rect.set_height((last_y - new_y) as u32);
                             t_rect.set_bottom(last_y as i32);
                             wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
@@ -446,13 +454,13 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                     t_rect.right() as i16,
                                     t_rect.top() as i16,
                                     box_rounding,
-                                    Color::RGB(0, 255, 255),
+                                    trk2col(trk),
                                 )
                                 .unwrap();
                             last_y = new_y;
                         }
-                        (NoteState::Pressed, NoteState::Pressed)
-                        | (NoteState::Keep, NoteState::Pressed) => {
+                        (NoteState::Pressed(_), NoteState::Pressed(trk))
+                        | (NoteState::Keep(_), NoteState::Pressed(trk)) => {
                             t_rect.set_height((last_y - new_y - 2) as u32);
                             t_rect.set_bottom(last_y as i32);
                             wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
@@ -463,14 +471,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                     t_rect.right() as i16,
                                     t_rect.top() as i16,
                                     box_rounding,
-                                    Color::RGB(0, 255, 255),
+                                    trk2col(trk),
                                 )
                                 .unwrap();
                             last_y = new_y;
                         }
-                        (NoteState::Keep, NoteState::Keep) => (),
-                        (NoteState::Off, NoteState::Keep)
-                        | (NoteState::Off, NoteState::Pressed)
+                        (NoteState::Keep(_), NoteState::Keep(_)) => (),
+                        (NoteState::Off, NoteState::Keep(_))
+                        | (NoteState::Off, NoteState::Pressed(_))
                         | (NoteState::Off, NoteState::Off) => {
                             last_y = new_y;
                         }
@@ -487,9 +495,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
         let wf_height = waterfall.as_ref().unwrap().query().height;
         let y_shift = (realtime as u64 * wf_height  as u64 / maxtime as u64) as u32
                         + wf_win_height;
-        let y_pos = wf_height - y_shift.min(wf_height);
-        let src_rect = sdl2::rect::Rect::new(0,y_pos as i32,rec.width(),wf_win_height);
-        let dst_rect = sdl2::rect::Rect::new(0,0,rec.width(),wf_win_height);
+        let (y_src,y_dst,y_height) = if y_shift > wf_height {
+            let dy = y_shift - wf_height;
+            (0,dy,wf_win_height-dy)
+        }
+        else {
+            (wf_height - y_shift.min(wf_height),0,wf_win_height)
+
+        };
+        let src_rect = sdl2::rect::Rect::new(0,y_src as i32,rec.width(),y_height);
+        let dst_rect = sdl2::rect::Rect::new(0,y_dst as i32,rec.width(),y_height);
         canvas.copy(waterfall.as_ref().unwrap(),src_rect,dst_rect)?;
 
         canvas.set_draw_color(Color::RGB(200, 200, 200));
