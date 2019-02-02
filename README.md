@@ -17,7 +17,6 @@ Screen output uses sdl2.
 
 ### Screenshot
 
-Here screenshot for current version:
 ![Screenshot](screenshot.png)
 
 ## Preparation
@@ -42,7 +41,7 @@ For help just execute
 rusthesia -h
 ```
 
-For usage example the midi-file 
+As an example the midi-file 
 [Marche_aux_Flambeaux.mid](http://www.mutopiaproject.org/cgibin/make-table.cgi?Instrument=Harmonium)
 is included. As per that website, this file is in the public domain.
 
