@@ -132,38 +132,36 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let list_tracks = matches.is_present("list");
     if list_tracks {
-        for (i,trk) in smf.tracks.iter().enumerate() {
-            println!("Track {}:",i);
+        for (i, trk) in smf.tracks.iter().enumerate() {
+            println!("Track {}:", i);
             for evt in trk.iter() {
                 match evt.kind {
                     midly::EventKind::Midi {
                         channel: _c,
-                        message: _m
+                        message: _m,
                     } => (),
                     midly::EventKind::SysEx(_) => (),
                     midly::EventKind::Escape(_) => (),
-                    midly::EventKind::Meta(mm) => {
-                        match mm {
-                            midly::MetaMessage::Text(raw) => {
-                                println!("  Text: {}",String::from_utf8_lossy(raw));
-                            },
-                            midly::MetaMessage::ProgramName(raw) => {
-                                println!("  Program name: {}",String::from_utf8_lossy(raw));
-                            },
-                            midly::MetaMessage::DeviceName(raw) => {
-                                println!("  Device name: {}",String::from_utf8_lossy(raw));
-                            },
-                            midly::MetaMessage::InstrumentName(raw) => {
-                                println!("  Instrument name: {}",String::from_utf8_lossy(raw));
-                            },
-                            midly::MetaMessage::TrackName(raw) => {
-                                println!("  Track name: {}",String::from_utf8_lossy(raw));
-                            },
-                            midly::MetaMessage::Tempo(ms_per_beat) => {
-                                trace!("  Tempo: {:?}",ms_per_beat);
-                            },
-                            _ => ()
+                    midly::EventKind::Meta(mm) => match mm {
+                        midly::MetaMessage::Text(raw) => {
+                            println!("  Text: {}", String::from_utf8_lossy(raw));
                         }
+                        midly::MetaMessage::ProgramName(raw) => {
+                            println!("  Program name: {}", String::from_utf8_lossy(raw));
+                        }
+                        midly::MetaMessage::DeviceName(raw) => {
+                            println!("  Device name: {}", String::from_utf8_lossy(raw));
+                        }
+                        midly::MetaMessage::InstrumentName(raw) => {
+                            println!("  Instrument name: {}", String::from_utf8_lossy(raw));
+                        }
+                        midly::MetaMessage::TrackName(raw) => {
+                            println!("  Track name: {}", String::from_utf8_lossy(raw));
+                        }
+                        midly::MetaMessage::Tempo(ms_per_beat) => {
+                            trace!("  Tempo: {:?}", ms_per_beat);
+                        }
+                        _ => (),
                     },
                 }
             }
@@ -171,10 +169,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return Ok(());
     }
 
-    let show_tracks = values_t!(matches.values_of("show"), usize)
-                                .unwrap_or_else(|e| e.exit());;
-    let play_tracks = values_t!(matches.values_of("play"), usize)
-                                .unwrap_or_else(|e| e.exit());;
+    let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|e| e.exit());;
+    let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
 
     // Reorder all midi message on timeline
     let mut tracks = vec![];
@@ -189,25 +185,23 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut maxtime = 0;
     loop {
         if tracks.len() > 1 {
-            tracks.sort_by_key(|x| u32::max_value()
-                                    - x.0 
-                                    - match (x.1 as u32,microseconds_per_beat) {
-                                        (0,_) => 0,
-                                        (ticks,None) => ticks,
-                                        (ticks,Some(mspb)) => {
-                                            (ticks as u64 * mspb as u64
-                                                    / ppqn as u64
-                                                    / 1000) as u32
-                                        }
-                                    });
+            tracks.sort_by_key(|x| {
+                u32::max_value()
+                    - x.0
+                    - match (x.1 as u32, microseconds_per_beat) {
+                        (0, _) => 0,
+                        (ticks, None) => ticks,
+                        (ticks, Some(mspb)) => {
+                            (ticks as u64 * mspb as u64 / ppqn as u64 / 1000) as u32
+                        }
+                    }
+            });
         }
         if let Some((t, ticks, i, mut t_iter, m, st, pt)) = tracks.pop() {
             let dt = match ticks as u64 {
                 0 => 0,
                 ticks => {
-                    (ticks * microseconds_per_beat.unwrap() as u64
-                            / ppqn as u64
-                            / 1000) as u32
+                    (ticks * microseconds_per_beat.unwrap() as u64 / ppqn as u64 / 1000) as u32
                 }
             };
             let t = t + dt;
@@ -235,11 +229,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         } else {
                             NoteState::Off
                         };
-                        maxtime = timeline[timeline.len()-1].0;
+                        maxtime = timeline[timeline.len() - 1].0;
                     }
                     Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
                         timeline[n].2[p1.as_int() as usize] = NoteState::Off;
-                        maxtime = timeline[timeline.len()-1].0;
+                        maxtime = timeline[timeline.len() - 1].0;
                     }
                     m => println!("=> {:#?}", m),
                 }
@@ -249,8 +243,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     midly::EventKind::Meta(midly::MetaMessage::Tempo(ms_per_beat)) => {
                         println!("Tempo => {:#?}", ev);
                         microseconds_per_beat = Some(ms_per_beat.as_int());
-                    },
-                    _ => ()
+                    }
+                    _ => (),
                 }
                 match ev.kind {
                     midly::EventKind::Midi {
@@ -258,7 +252,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         message: m,
                     } => {
                         tracks.push((t, ev.delta.as_int(), i, t_iter, Some(m), st, pt));
-                    }, 
+                    }
                     _ => {
                         println!("=> {:#?}", ev);
                         tracks.push((t, ev.delta.as_int(), i, t_iter, None, st, pt));
@@ -418,14 +412,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if waterfall.is_some() {
             if waterfall.as_ref().unwrap().query().width != rec.width() {
                 waterfall = None;
-            }                
+            }
         }
         if waterfall.is_none() {
             let width = rec.width();
             let height = (rec.height() * maxtime / 5_000).min(16384);
-            println!("Waterfall size: {}x{}   maxtime = {}  height={}", width, height, maxtime, rec.height());
-            let sf = sdl2::surface::Surface::new(width,height,
-                                            sdl2::pixels::PixelFormatEnum::RGB888)?;
+            println!(
+                "Waterfall size: {}x{}   maxtime = {}  height={}",
+                width,
+                height,
+                maxtime,
+                rec.height()
+            );
+            let sf =
+                sdl2::surface::Surface::new(width, height, sdl2::pixels::PixelFormatEnum::RGB888)?;
             let mut wf_canvas = sf.into_canvas()?;
 
             wf_canvas.set_draw_color(Color::RGB(100, 100, 100));
@@ -443,7 +443,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     match (state, new_state) {
                         (NoteState::Pressed(_), NoteState::Keep(_)) => (),
                         (NoteState::Pressed(trk), NoteState::Off)
-                            | (NoteState::Keep(trk), NoteState::Off) => {
+                        | (NoteState::Keep(trk), NoteState::Off) => {
                             t_rect.set_height((last_y - new_y) as u32);
                             t_rect.set_bottom(last_y as i32);
                             wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
@@ -486,26 +486,23 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     state = new_state;
                 }
             }
-            waterfall = Some(texture_creator
-                .create_texture_from_surface(wf_canvas.into_surface())?);
+            waterfall =
+                Some(texture_creator.create_texture_from_surface(wf_canvas.into_surface())?);
         }
 
         let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
 
         let wf_height = waterfall.as_ref().unwrap().query().height;
-        let y_shift = (realtime as u64 * wf_height  as u64 / maxtime as u64) as u32
-                        + wf_win_height;
-        let (y_src,y_dst,y_height) = if y_shift > wf_height {
+        let y_shift = (realtime as u64 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
+        let (y_src, y_dst, y_height) = if y_shift > wf_height {
             let dy = y_shift - wf_height;
-            (0,dy,wf_win_height-dy)
-        }
-        else {
-            (wf_height - y_shift.min(wf_height),0,wf_win_height)
-
+            (0, dy, wf_win_height - dy)
+        } else {
+            (wf_height - y_shift.min(wf_height), 0, wf_win_height)
         };
-        let src_rect = sdl2::rect::Rect::new(0,y_src as i32,rec.width(),y_height);
-        let dst_rect = sdl2::rect::Rect::new(0,y_dst as i32,rec.width(),y_height);
-        canvas.copy(waterfall.as_ref().unwrap(),src_rect,dst_rect)?;
+        let src_rect = sdl2::rect::Rect::new(0, y_src as i32, rec.width(), y_height);
+        let dst_rect = sdl2::rect::Rect::new(0, y_dst as i32, rec.width(), y_height);
+        canvas.copy(waterfall.as_ref().unwrap(), src_rect, dst_rect)?;
 
         canvas.set_draw_color(Color::RGB(200, 200, 200));
         canvas.fill_rects(&white_keys).unwrap();

@@ -1,6 +1,6 @@
 # Rusthesia
 
-Rusthesia is till now just a hack to play a midi file, created from Logic Pro/X, and display a window with falling notes down onto a piano. Thus hardcoded for example is to use track 1 and 2 as piano input.
+Rusthesia is till now just a hack to play a midi file, created from Logic Pro/X, and display a window with falling notes down onto a piano.
 
 The midi file can be transposed in half notes in realtime by using shift left/right key. Playing can be paused by space.
 
@@ -76,8 +76,9 @@ In order to play the lower and show only the upper, use the following command:
 ## Todo
 
 - Refactoring and code quality
+    - Derive the waterfall directly from the midi tracks
+    - Do not redraw piano always
 - Create video
-- Derive the waterfall directly from the midi tracks
 - Nicer looking output
     - Waterfall background with lines for orientation
     - black keys should have different darker color
@@ -88,9 +89,9 @@ In order to play the lower and show only the upper, use the following command:
 - Change most of the prints into log-commands and enable logging per command line option
 - Do not exit on end
 - Allow shift by double finger gesture
+- Recognize chords in realtime
 - and more...
 
 ## Final Words
 
-The application works, but still this is a quick hack. In future refactoring will be necessary.
-
+The application works, but still this is a quick hack and not polished for code review ;-)
