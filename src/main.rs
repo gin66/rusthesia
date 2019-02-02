@@ -3,7 +3,7 @@ use std::io::{stdin, stdout, Read, Write};
 use std::thread::sleep;
 use std::time::Duration;
 
-use log::LevelFilter;
+use log::*;
 use simple_logging;
 
 use midir::MidiOutput;
@@ -37,7 +37,7 @@ fn key_to_white(key: u32) -> u32 {
 }
 
 fn main() -> Result<(), Box<std::error::Error>> {
-    simple_logging::log_to_stderr(LevelFilter::Trace);
+    simple_logging::log_to_stderr(LevelFilter::Info);
 
     let matches = App::new("Rusthesia")
         .version(crate_version!())
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     };
 
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi)?;
-    println!("{:#?}", smf.header.timing);
+    trace!("{:#?}", smf.header.timing);
     let ppqn = match smf.header.timing {
         midly::Timing::Metrical(x) => x.as_int() as u32,
         midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
@@ -153,7 +153,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                 println!("  Track name: {}",String::from_utf8_lossy(raw));
                             },
                             midly::MetaMessage::Tempo(ms_per_beat) => {
-                                println!("  Tempo: {:?}",ms_per_beat);
+                                trace!("  Tempo: {:?}",ms_per_beat);
                             },
                             _ => ()
                         }

@@ -18,13 +18,7 @@ Screen output uses sdl2.
 ### Screenshot
 
 Here screenshot for current version:
-![Screensho](screenshot.png)
-
-## Installation
-
-```
-cargo install rusthesia
-```
+![Screenshot](screenshot.png)
 
 ## Preparation
 
@@ -34,7 +28,11 @@ The sdl2 libraries need to be installed. On macos this can be done by:
 brew install sdl2 sdl2_gfx
 ```
 
+## Installation
 
+```
+cargo install rusthesia
+```
 
 ## Usage
 
@@ -42,6 +40,37 @@ For help just execute
 
 ```
 rusthesia -h
+```
+
+For usage example the midi-file 
+[Marche_aux_Flambeaux.mid](http://www.mutopiaproject.org/cgibin/make-table.cgi?Instrument=Harmonium)
+is included. As per that website, this file is in the public domain.
+
+First list the available tracks:
+```
+> rusthesia Marche_aux_Flambeaux.mid -l
+Track 0:
+  Text: Creator: GNU LilyPond 2.8.7
+  Text: Generated automatically by: GNU LilyPond 2.8.7
+  Text: at Mon Oct 16 20:41:39 2006
+  Text: at Mon Oct 16 20:41:39 2006
+  Track name: Track 0
+Track 1:
+  Track name: upper
+  Instrument name: accordion
+Track 2:
+  Track name: lower
+  Instrument name: accordion
+```
+
+For playing and displaying all tracks use:
+```
+> rusthesia Marche_aux_Flambeaux.mid -p 0 1 2 -s 0 1 2
+```
+
+In order to play the lower and show only the upper, use the following command:
+```
+> rusthesia Marche_aux_Flambeaux.mid -p 1 -s 2
 ```
 
 ## Todo
@@ -55,6 +84,7 @@ rusthesia -h
 - Native macos app with fruitbasket
 - Add pause before playing the midi
 - Handle all meta messages during playing
+- Change most of the prints into log-commands and enable logging per command line option
 - and more...
 
 ## Final Words
