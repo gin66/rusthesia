@@ -80,7 +80,6 @@ In order to play the lower and show only the upper, use the following command:
 - Create video
 - Nicer looking output
     - Waterfall background with lines for orientation
-    - black keys should have different darker color
     - visual effect for pressed key on waterfall side
 - Native macos app with fruitbasket
 - Userinterface

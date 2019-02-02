@@ -27,6 +27,13 @@ enum NoteState {
 }
 
 // http://www.rwgiangiulio.com/construction/manual/layout.jpg
+fn is_white(key: u32) -> bool {
+    match key % 12 {
+        0 | 2 | 4 | 5 | 7 | 9 | 11 => true,
+        1 | 3 | 6 | 8 | 10 => false,
+        _ => panic!("wrong value"),
+    }
+}
 
 fn key_to_white(key: u32) -> u32 {
     match key % 12 {
@@ -36,10 +43,12 @@ fn key_to_white(key: u32) -> u32 {
     }
 }
 
-fn trk2col(trk: usize) -> Color {
-    match trk / 2 {
-        0 => Color::RGB(0, 255, 255),
-        _ => Color::RGB(255, 0, 255),
+fn trk2col(trk: usize, key: u32) -> Color {
+    match (trk / 2, is_white(key)) {
+        (0, true) => Color::RGB(0, 255, 255),
+        (0, false) => Color::RGB(0, 200, 200),
+        (_, true) => Color::RGB(255, 0, 255),
+        (_, false) => Color::RGB(200, 0, 200),
     }
 }
 
@@ -464,7 +473,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                         t_rect.right() as i16,
                                         t_rect.top() as i16,
                                         box_rounding,
-                                        trk2col(trk),
+                                        trk2col(trk, key),
                                     )
                                     .unwrap();
                                 last_y = new_y;
@@ -481,7 +490,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                                         t_rect.right() as i16,
                                         t_rect.top() as i16,
                                         box_rounding,
-                                        trk2col(trk),
+                                        trk2col(trk, key),
                                     )
                                     .unwrap();
                                 last_y = new_y;
@@ -572,11 +581,17 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
-                } => shift_key += 1,
+                } => {
+                    shift_key += 1;
+                    opt_waterfall = None;
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Right),
                     ..
-                } => shift_key -= 1,
+                } => {
+                    shift_key -= 1;
+                    opt_waterfall = None;
+                }
                 _ => {}
             }
         }
