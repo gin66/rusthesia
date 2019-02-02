@@ -84,12 +84,15 @@ In order to play the lower and show only the upper, use the following command:
     - black keys should have different darker color
     - visual effect for pressed key on waterfall side
 - Native macos app with fruitbasket
+- Userinterface
+    - Toggle track display by pressing keys 0, 1, 2,...
+    - Allow shift by double finger gesture
 - Add pause before playing the midi
 - Handle all meta messages during playing
 - Change most of the prints into log-commands and enable logging per command line option
 - Do not exit on end
-- Allow shift by double finger gesture
 - Recognize chords in realtime
+- Set up travis
 - and more...
 
 ## Final Words

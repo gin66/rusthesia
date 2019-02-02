@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{stdin, stdout, Read, Write};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use log::*;
 use simple_logging;
@@ -292,14 +292,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     };
 
-    println!("\nOpening connection");
+    trace!("\nOpening connection");
     let mut conn_out = midi_out.connect(out_port, "midir-test")?;
-    println!("Connection open");
+    trace!("Connection open");
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("rust-sdl2 demo", 800, 600)
+        .window("Rusthesia", 800, 600)
         .position_centered()
         .resizable()
         .build()
@@ -317,7 +317,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut next_head_pos = 1;
     let mut curr_pos = 0;
     let mut paused = false;
-    let mut waterfall: Option<sdl2::render::Texture> = None;
+    let mut opt_waterfall: Option<sdl2::render::Texture> = None;
+    let mut opt_last_draw_instant: Option<Instant> = None;
     'running: loop {
         if next_head_pos < timeline.len() {
             if timeline[next_head_pos].0 <= realtime {
@@ -339,202 +340,211 @@ fn main() -> Result<(), Box<std::error::Error>> {
             break;
         }
 
-        canvas.set_draw_color(Color::RGB(50, 50, 50));
-        canvas.clear();
+        if opt_last_draw_instant
+                    .map(|x| x.elapsed().subsec_millis() > 20)
+                    .unwrap_or(true) {
+            opt_last_draw_instant = Some(Instant::now());
+            canvas.set_draw_color(Color::RGB(50, 50, 50));
+            canvas.clear();
 
-        let rec = canvas.viewport();
-        let mut black_keys = vec![];
-        let mut white_keys = vec![];
-        let mut black_keys_on = vec![];
-        let mut white_keys_on = vec![];
-        let mut traces = vec![];
+            let rec = canvas.viewport();
+            let mut black_keys = vec![];
+            let mut white_keys = vec![];
+            let mut black_keys_on = vec![];
+            let mut white_keys_on = vec![];
+            let mut traces = vec![];
 
-        let left_white_key = key_to_white(left_key);
-        let right_white_key = key_to_white(right_key);
-        let nr_white_keys = right_white_key + 1 - left_white_key;
+            let left_white_key = key_to_white(left_key);
+            let right_white_key = key_to_white(right_key);
+            let nr_white_keys = right_white_key + 1 - left_white_key;
 
-        let white_key_width = rec.width() / nr_white_keys - 1;
-        let black_key_width = white_key_width * 11_00 / 22_15;
-        let white_key_space = 1;
-        let white_key_height = white_key_width * 126_27 / 22_15;
-        let black_key_height = white_key_height * 80 / (80 + 45);
-        let black_cde_off_center = (13_97 + 11_00 - 22_15) * white_key_width / 22_15;
-        let black_fgah_off_center = (13_08 + 11_00 - 22_15) * white_key_width / 22_15;
-        let part_width = (white_key_width + white_key_space) * nr_white_keys - white_key_space;
-        let offset_x = (rec.left() + rec.right() - part_width as i32) / 2
-            - left_white_key as i32 * (white_key_width + white_key_space) as i32;
-        let box_rounding = (black_key_width / 2 - 1) as i16;
-        for key in left_key..=right_key {
-            match key % 12 {
-                0 | 2 | 4 | 5 | 7 | 9 | 11 => {
-                    let nx = key_to_white(key);
-                    let r = sdl2::rect::Rect::new(
-                        offset_x + (nx * white_key_width + nx * white_key_space) as i32,
-                        rec.bottom() - white_key_height as i32,
-                        white_key_width,
-                        white_key_height,
-                    );
-                    traces.push(r.clone());
-                    match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
-                        NoteState::Pressed(_) | NoteState::Keep(_) => white_keys_on.push(r),
-                        NoteState::Off => white_keys.push(r),
-                    }
-                }
-                1 | 3 | 6 | 8 | 10 => {
-                    // black keys
-                    let nx = key_to_white(key);
-                    let mut left_x = (white_key_width - (black_key_width - white_key_space) / 2
-                        + nx * white_key_width
-                        + nx * white_key_space) as i32;
-                    match key % 12 {
-                        1 => left_x -= black_cde_off_center as i32,
-                        3 => left_x += black_cde_off_center as i32,
-                        6 => left_x -= black_fgah_off_center as i32,
-                        10 => left_x += black_fgah_off_center as i32,
-                        _ => (),
-                    }
-                    let r = sdl2::rect::Rect::new(
-                        offset_x + left_x,
-                        rec.bottom() - white_key_height as i32,
-                        black_key_width,
-                        black_key_height,
-                    );
-                    traces.push(r.clone());
-                    match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
-                        NoteState::Pressed(_) | NoteState::Keep(_) => black_keys_on.push(r),
-                        NoteState::Off => black_keys.push(r),
-                    }
-                }
-                _ => (),
-            }
-        }
-
-        if waterfall.is_some() {
-            if waterfall.as_ref().unwrap().query().width != rec.width() {
-                waterfall = None;
-            }
-        }
-        if waterfall.is_none() {
-            let width = rec.width();
-            let height = (rec.height() * maxtime / 5_000).min(16384);
-            println!(
-                "Waterfall size: {}x{}   maxtime = {}  height={}",
-                width,
-                height,
-                maxtime,
-                rec.height()
-            );
-            let sf =
-                sdl2::surface::Surface::new(width, height, sdl2::pixels::PixelFormatEnum::RGB888)?;
-            let mut wf_canvas = sf.into_canvas()?;
-
-            wf_canvas.set_draw_color(Color::RGB(100, 100, 100));
-            wf_canvas.clear();
-
+            let white_key_width = rec.width() / nr_white_keys - 1;
+            let black_key_width = white_key_width * 11_00 / 22_15;
+            let white_key_space = 1;
+            let white_key_height = white_key_width * 126_27 / 22_15;
+            let black_key_height = white_key_height * 80 / (80 + 45);
+            let black_cde_off_center = (13_97 + 11_00 - 22_15) * white_key_width / 22_15;
+            let black_fgah_off_center = (13_08 + 11_00 - 22_15) * white_key_width / 22_15;
+            let part_width = (white_key_width + white_key_space) * nr_white_keys - white_key_space;
+            let offset_x = (rec.left() + rec.right() - part_width as i32) / 2
+                - left_white_key as i32 * (white_key_width + white_key_space) as i32;
+            let box_rounding = (black_key_width / 2 - 1) as i16;
             for key in left_key..=right_key {
-                let mut last_y = height;
-                let mut t_rect = traces.remove(0);
-                let mut state = NoteState::Off;
-                for p in 0..timeline.len() {
-                    let p_t = timeline[p].0.min(maxtime);
-                    let new_y = (p_t as u64 * height as u64 / maxtime as u64) as u32;
-                    let new_y = height - new_y;
-                    let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
-                    match (state, new_state) {
-                        (NoteState::Pressed(_), NoteState::Keep(_)) => (),
-                        (NoteState::Pressed(trk), NoteState::Off)
-                        | (NoteState::Keep(trk), NoteState::Off) => {
-                            t_rect.set_height((last_y - new_y) as u32);
-                            t_rect.set_bottom(last_y as i32);
-                            wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
-                            wf_canvas
-                                .rounded_box(
-                                    t_rect.left() as i16,
-                                    t_rect.bottom() as i16,
-                                    t_rect.right() as i16,
-                                    t_rect.top() as i16,
-                                    box_rounding,
-                                    trk2col(trk),
-                                )
-                                .unwrap();
-                            last_y = new_y;
+                match key % 12 {
+                    0 | 2 | 4 | 5 | 7 | 9 | 11 => {
+                        let nx = key_to_white(key);
+                        let r = sdl2::rect::Rect::new(
+                            offset_x + (nx * white_key_width + nx * white_key_space) as i32,
+                            rec.bottom() - white_key_height as i32,
+                            white_key_width,
+                            white_key_height,
+                        );
+                        traces.push(r.clone());
+                        match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
+                            NoteState::Pressed(_) | NoteState::Keep(_) => white_keys_on.push(r),
+                            NoteState::Off => white_keys.push(r),
                         }
-                        (NoteState::Pressed(_), NoteState::Pressed(trk))
-                        | (NoteState::Keep(_), NoteState::Pressed(trk)) => {
-                            t_rect.set_height((last_y - new_y - 2) as u32);
-                            t_rect.set_bottom(last_y as i32);
-                            wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
-                            wf_canvas
-                                .rounded_box(
-                                    t_rect.left() as i16,
-                                    t_rect.bottom() as i16,
-                                    t_rect.right() as i16,
-                                    t_rect.top() as i16,
-                                    box_rounding,
-                                    trk2col(trk),
-                                )
-                                .unwrap();
-                            last_y = new_y;
+                    }
+                    1 | 3 | 6 | 8 | 10 => {
+                        // black keys
+                        let nx = key_to_white(key);
+                        let mut left_x = (white_key_width - (black_key_width - white_key_space) / 2
+                            + nx * white_key_width
+                            + nx * white_key_space) as i32;
+                        match key % 12 {
+                            1 => left_x -= black_cde_off_center as i32,
+                            3 => left_x += black_cde_off_center as i32,
+                            6 => left_x -= black_fgah_off_center as i32,
+                            10 => left_x += black_fgah_off_center as i32,
+                            _ => (),
                         }
-                        (NoteState::Keep(_), NoteState::Keep(_)) => (),
-                        (NoteState::Off, NoteState::Keep(_))
-                        | (NoteState::Off, NoteState::Pressed(_))
-                        | (NoteState::Off, NoteState::Off) => {
-                            last_y = new_y;
+                        let r = sdl2::rect::Rect::new(
+                            offset_x + left_x,
+                            rec.bottom() - white_key_height as i32,
+                            black_key_width,
+                            black_key_height,
+                        );
+                        traces.push(r.clone());
+                        match timeline[curr_pos].2[(key as i8 + shift_key) as usize] {
+                            NoteState::Pressed(_) | NoteState::Keep(_) => black_keys_on.push(r),
+                            NoteState::Off => black_keys.push(r),
                         }
-                    };
-                    state = new_state;
+                    }
+                    _ => (),
                 }
             }
-            waterfall =
-                Some(texture_creator.create_texture_from_surface(wf_canvas.into_surface())?);
+
+            if opt_waterfall.is_some() {
+                if opt_waterfall.as_ref().unwrap().query().width != rec.width() {
+                    opt_waterfall = None;
+                }
+            }
+            if opt_waterfall.is_none() {
+                let width = rec.width();
+                let height = (rec.height() * maxtime / 5_000).min(16384);
+                println!(
+                    "Waterfall size: {}x{}   maxtime = {}  height={}",
+                    width,
+                    height,
+                    maxtime,
+                    rec.height()
+                );
+                let sf = sdl2::surface::Surface::new(
+                    width,
+                    height,
+                    sdl2::pixels::PixelFormatEnum::RGB888,
+                )?;
+                let mut wf_canvas = sf.into_canvas()?;
+
+                wf_canvas.set_draw_color(Color::RGB(100, 100, 100));
+                wf_canvas.clear();
+
+                for key in left_key..=right_key {
+                    let mut last_y = height;
+                    let mut t_rect = traces.remove(0);
+                    let mut state = NoteState::Off;
+                    for p in 0..timeline.len() {
+                        let p_t = timeline[p].0.min(maxtime);
+                        let new_y = (p_t as u64 * height as u64 / maxtime as u64) as u32;
+                        let new_y = height - new_y;
+                        let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
+                        match (state, new_state) {
+                            (NoteState::Pressed(_), NoteState::Keep(_)) => (),
+                            (NoteState::Pressed(trk), NoteState::Off)
+                            | (NoteState::Keep(trk), NoteState::Off) => {
+                                t_rect.set_height((last_y - new_y) as u32);
+                                t_rect.set_bottom(last_y as i32);
+                                wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
+                                wf_canvas
+                                    .rounded_box(
+                                        t_rect.left() as i16,
+                                        t_rect.bottom() as i16,
+                                        t_rect.right() as i16,
+                                        t_rect.top() as i16,
+                                        box_rounding,
+                                        trk2col(trk),
+                                    )
+                                    .unwrap();
+                                last_y = new_y;
+                            }
+                            (NoteState::Pressed(_), NoteState::Pressed(trk))
+                            | (NoteState::Keep(_), NoteState::Pressed(trk)) => {
+                                t_rect.set_height((last_y - new_y - 2) as u32);
+                                t_rect.set_bottom(last_y as i32);
+                                wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
+                                wf_canvas
+                                    .rounded_box(
+                                        t_rect.left() as i16,
+                                        t_rect.bottom() as i16,
+                                        t_rect.right() as i16,
+                                        t_rect.top() as i16,
+                                        box_rounding,
+                                        trk2col(trk),
+                                    )
+                                    .unwrap();
+                                last_y = new_y;
+                            }
+                            (NoteState::Keep(_), NoteState::Keep(_)) => (),
+                            (NoteState::Off, NoteState::Keep(_))
+                            | (NoteState::Off, NoteState::Pressed(_))
+                            | (NoteState::Off, NoteState::Off) => {
+                                last_y = new_y;
+                            }
+                        };
+                        state = new_state;
+                    }
+                }
+                opt_waterfall =
+                    Some(texture_creator.create_texture_from_surface(wf_canvas.into_surface())?);
+            }
+
+            let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
+
+            let wf_height = opt_waterfall.as_ref().unwrap().query().height;
+            let y_shift =
+                (realtime as u64 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
+            let (y_src, y_dst, y_height) = if y_shift > wf_height {
+                let dy = y_shift - wf_height;
+                (0, dy, wf_win_height - dy)
+            } else {
+                (wf_height - y_shift.min(wf_height), 0, wf_win_height)
+            };
+            let src_rect = sdl2::rect::Rect::new(0, y_src as i32, rec.width(), y_height);
+            let dst_rect = sdl2::rect::Rect::new(0, y_dst as i32, rec.width(), y_height);
+            canvas.copy(opt_waterfall.as_ref().unwrap(), src_rect, dst_rect)?;
+
+            canvas.set_draw_color(Color::RGB(200, 200, 200));
+            canvas.fill_rects(&white_keys).unwrap();
+            canvas.set_draw_color(Color::RGB(255, 255, 255));
+            canvas.fill_rects(&white_keys_on).unwrap();
+
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas.fill_rects(&black_keys).unwrap();
+            canvas.set_draw_color(Color::RGB(0, 0, 255));
+            canvas.fill_rects(&black_keys_on).unwrap();
+
+            let mut renderer =
+                SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
+            renderer.scale = 1;
+
+            let surface = renderer.draw(&format!("{} ms", realtime)).unwrap();
+            let demo_tex = texture_creator
+                .create_texture_from_surface(surface)
+                .unwrap();
+            canvas
+                .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 10, 100, 20))
+                .unwrap();
+
+            let surface = renderer.draw(&format!("shift={}", shift_key)).unwrap();
+            let demo_tex = texture_creator
+                .create_texture_from_surface(surface)
+                .unwrap();
+            canvas
+                .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 30, 100, 20))
+                .unwrap();
+
+            canvas.present();
         }
-
-        let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
-
-        let wf_height = waterfall.as_ref().unwrap().query().height;
-        let y_shift = (realtime as u64 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
-        let (y_src, y_dst, y_height) = if y_shift > wf_height {
-            let dy = y_shift - wf_height;
-            (0, dy, wf_win_height - dy)
-        } else {
-            (wf_height - y_shift.min(wf_height), 0, wf_win_height)
-        };
-        let src_rect = sdl2::rect::Rect::new(0, y_src as i32, rec.width(), y_height);
-        let dst_rect = sdl2::rect::Rect::new(0, y_dst as i32, rec.width(), y_height);
-        canvas.copy(waterfall.as_ref().unwrap(), src_rect, dst_rect)?;
-
-        canvas.set_draw_color(Color::RGB(200, 200, 200));
-        canvas.fill_rects(&white_keys).unwrap();
-        canvas.set_draw_color(Color::RGB(255, 255, 255));
-        canvas.fill_rects(&white_keys_on).unwrap();
-
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rects(&black_keys).unwrap();
-        canvas.set_draw_color(Color::RGB(0, 0, 255));
-        canvas.fill_rects(&black_keys_on).unwrap();
-
-        let mut renderer =
-            SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
-        renderer.scale = 1;
-
-        let surface = renderer.draw(&format!("{} ms", realtime)).unwrap();
-        let demo_tex = texture_creator
-            .create_texture_from_surface(surface)
-            .unwrap();
-        canvas
-            .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 10, 100, 20))
-            .unwrap();
-
-        let surface = renderer.draw(&format!("shift={}", shift_key)).unwrap();
-        let demo_tex = texture_creator
-            .create_texture_from_surface(surface)
-            .unwrap();
-        canvas
-            .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 30, 100, 20))
-            .unwrap();
-
-        canvas.present();
 
         for event in event_pump.poll_iter() {
             match event {
@@ -573,7 +583,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if next_head_pos < timeline.len() {
             let dt = timeline[next_head_pos].0 - realtime;
             if dt > 0 {
-                let dt = dt.min(25);
+                let dt = dt.min(5);
                 sleep(Duration::from_millis(dt as u64));
                 if !paused {
                     realtime += dt;
@@ -582,9 +592,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     }
     sleep(Duration::from_millis(150));
-    println!("\nClosing connection");
+    trace!("\nClosing connection");
     // This is optional, the connection would automatically be closed as soon as it goes out of scope
     conn_out.close();
-    println!("Connection closed");
+    trace!("Connection closed");
     Ok(())
 }
