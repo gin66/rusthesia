@@ -1,6 +1,6 @@
 [package]
 name = "rusthesia"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Jochen Kiemes <jochen@kiemes.de>"]
 edition = "2018"
 license = "MIT"
