@@ -78,7 +78,6 @@ In order to play the lower and show only the upper, use the following command:
 - Refactoring and code quality
 - Bug: Long pressed keys (start before and end after visible region) are not drawn
 - Create video
-- Speed up by using e.g. one large sdl2 surface
 - Nicer looking output
 - Different color for the channels (left/right)
 - Native macos app with fruitbasket

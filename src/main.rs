@@ -179,6 +179,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut timeline = vec![(0, vec![], vec![NoteState::Off; 128])];
     let mut microseconds_per_beat = None;
+    let mut maxtime = 0;
     loop {
         if tracks.len() > 1 {
             tracks.sort_by_key(|x| u32::max_value()
@@ -227,9 +228,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         } else {
                             NoteState::Off
                         };
+                        maxtime = timeline[timeline.len()-1].0;
                     }
                     Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
                         timeline[n].2[p1.as_int() as usize] = NoteState::Off;
+                        maxtime = timeline[timeline.len()-1].0;
                     }
                     m => println!("=> {:#?}", m),
                 }
@@ -309,12 +312,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let into_future_ms = 3_000;
-
     let mut realtime = 0;
     let mut next_head_pos = 1;
     let mut curr_pos = 0;
     let mut paused = false;
+    let mut waterfall: Option<sdl2::render::Texture> = None;
     'running: loop {
         if next_head_pos < timeline.len() {
             if timeline[next_head_pos].0 <= realtime {
@@ -406,6 +408,90 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
 
+        if waterfall.is_some() {
+            if waterfall.as_ref().unwrap().query().width != rec.width() {
+                waterfall = None;
+            }                
+        }
+        if waterfall.is_none() {
+            let width = rec.width();
+            let height = (rec.height() * maxtime / 5_000).min(16384);
+            println!("Waterfall size: {}x{}   maxtime = {}  height={}", width, height, maxtime, rec.height());
+            let sf = sdl2::surface::Surface::new(width,height,
+                                            sdl2::pixels::PixelFormatEnum::RGB888)?;
+            let mut wf_canvas = sf.into_canvas()?;
+
+            wf_canvas.set_draw_color(Color::RGB(100, 100, 100));
+            wf_canvas.clear();
+
+            for key in left_key..=right_key {
+                let mut last_y = height;
+                let mut t_rect = traces.remove(0);
+                let mut state = NoteState::Off;
+                for p in 0..timeline.len() {
+                    let p_t = timeline[p].0.min(maxtime);
+                    let new_y = (p_t as u64 * height as u64 / maxtime as u64) as u32;
+                    let new_y = height - new_y;
+                    let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
+                    match (state, new_state) {
+                        (NoteState::Pressed, NoteState::Keep) => (),
+                        (NoteState::Pressed, NoteState::Off) | (NoteState::Keep, NoteState::Off) => {
+                            t_rect.set_height((last_y - new_y) as u32);
+                            t_rect.set_bottom(last_y as i32);
+                            wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
+                            wf_canvas
+                                .rounded_box(
+                                    t_rect.left() as i16,
+                                    t_rect.bottom() as i16,
+                                    t_rect.right() as i16,
+                                    t_rect.top() as i16,
+                                    box_rounding,
+                                    Color::RGB(0, 255, 255),
+                                )
+                                .unwrap();
+                            last_y = new_y;
+                        }
+                        (NoteState::Pressed, NoteState::Pressed)
+                        | (NoteState::Keep, NoteState::Pressed) => {
+                            t_rect.set_height((last_y - new_y - 2) as u32);
+                            t_rect.set_bottom(last_y as i32);
+                            wf_canvas.set_draw_color(Color::RGB(0, 255, 255));
+                            wf_canvas
+                                .rounded_box(
+                                    t_rect.left() as i16,
+                                    t_rect.bottom() as i16,
+                                    t_rect.right() as i16,
+                                    t_rect.top() as i16,
+                                    box_rounding,
+                                    Color::RGB(0, 255, 255),
+                                )
+                                .unwrap();
+                            last_y = new_y;
+                        }
+                        (NoteState::Keep, NoteState::Keep) => (),
+                        (NoteState::Off, NoteState::Keep)
+                        | (NoteState::Off, NoteState::Pressed)
+                        | (NoteState::Off, NoteState::Off) => {
+                            last_y = new_y;
+                        }
+                    };
+                    state = new_state;
+                }
+            }
+            waterfall = Some(texture_creator
+                .create_texture_from_surface(wf_canvas.into_surface())?);
+        }
+
+        let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
+
+        let wf_height = waterfall.as_ref().unwrap().query().height;
+        let y_shift = (realtime as u64 * wf_height  as u64 / maxtime as u64) as u32
+                        + wf_win_height;
+        let y_pos = wf_height - y_shift.min(wf_height);
+        let src_rect = sdl2::rect::Rect::new(0,y_pos as i32,rec.width(),wf_win_height);
+        let dst_rect = sdl2::rect::Rect::new(0,0,rec.width(),wf_win_height);
+        canvas.copy(waterfall.as_ref().unwrap(),src_rect,dst_rect)?;
+
         canvas.set_draw_color(Color::RGB(200, 200, 200));
         canvas.fill_rects(&white_keys).unwrap();
         canvas.set_draw_color(Color::RGB(255, 255, 255));
@@ -415,70 +501,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
         canvas.fill_rects(&black_keys).unwrap();
         canvas.set_draw_color(Color::RGB(0, 0, 255));
         canvas.fill_rects(&black_keys_on).unwrap();
-
-        let mut pos_to = curr_pos;
-        while pos_to < timeline.len() - 1 {
-            pos_to += 1;
-            if timeline[pos_to].0 > realtime + into_future_ms {
-                break;
-            }
-        }
-        for key in left_key..=right_key {
-            let y_bottom = rec.bottom() - white_key_height as i32;
-            let mut last_y = y_bottom;
-            let mut t_rect = traces.remove(0);
-            let mut state = NoteState::Off;
-            for p in curr_pos..=pos_to {
-                let p_t = timeline[p].0;
-                let p_t = p_t.max(realtime).min(realtime + into_future_ms);
-                let new_y =
-                    (realtime + into_future_ms - p_t) as i32 * y_bottom / into_future_ms as i32;
-                let new_state = timeline[p].2[(key as i8 + shift_key) as usize];
-                match (state, new_state) {
-                    (NoteState::Pressed, NoteState::Keep) => (),
-                    (NoteState::Pressed, NoteState::Off) | (NoteState::Keep, NoteState::Off) => {
-                        t_rect.set_height((last_y - new_y) as u32);
-                        t_rect.set_bottom(last_y);
-                        canvas.set_draw_color(Color::RGB(0, 255, 255));
-                        canvas
-                            .rounded_box(
-                                t_rect.left() as i16,
-                                t_rect.bottom() as i16,
-                                t_rect.right() as i16,
-                                t_rect.top() as i16,
-                                box_rounding,
-                                Color::RGB(0, 255, 255),
-                            )
-                            .unwrap();
-                        last_y = new_y;
-                    }
-                    (NoteState::Pressed, NoteState::Pressed)
-                    | (NoteState::Keep, NoteState::Pressed) => {
-                        t_rect.set_height((last_y - new_y - 2) as u32);
-                        t_rect.set_bottom(last_y);
-                        canvas.set_draw_color(Color::RGB(0, 255, 255));
-                        canvas
-                            .rounded_box(
-                                t_rect.left() as i16,
-                                t_rect.bottom() as i16,
-                                t_rect.right() as i16,
-                                t_rect.top() as i16,
-                                box_rounding,
-                                Color::RGB(0, 255, 255),
-                            )
-                            .unwrap();
-                        last_y = new_y;
-                    }
-                    (NoteState::Keep, NoteState::Keep) => (),
-                    (NoteState::Off, NoteState::Keep)
-                    | (NoteState::Off, NoteState::Pressed)
-                    | (NoteState::Off, NoteState::Off) => {
-                        last_y = new_y;
-                    }
-                };
-                state = new_state;
-            }
-        }
 
         let mut renderer =
             SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
