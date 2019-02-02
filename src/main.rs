@@ -105,7 +105,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         )
         .get_matches();
 
-    let mut f = File::open(matches.value_of("MIDI").unwrap())?;
+    let midi_fname = matches.value_of("MIDI").unwrap();
+    let mut f = File::open(midi_fname)?;
     let mut midi = Vec::new();
     f.read_to_end(&mut midi)?;
 
@@ -299,7 +300,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("Rusthesia", 800, 600)
+        .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
         .position_centered()
         .resizable()
         .build()
@@ -341,8 +342,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
 
         if opt_last_draw_instant
-                    .map(|x| x.elapsed().subsec_millis() > 20)
-                    .unwrap_or(true) {
+            .map(|x| x.elapsed().subsec_millis() > 20)
+            .unwrap_or(true)
+        {
             opt_last_draw_instant = Some(Instant::now());
             canvas.set_draw_color(Color::RGB(50, 50, 50));
             canvas.clear();
