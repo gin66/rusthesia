@@ -115,11 +115,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
         (21, 108)
     };
 
-    let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi).unwrap();
+    let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi)?;
     println!("{:#?}", smf.header.timing);
-    let tref = match smf.header.timing {
+    let ppqn = match smf.header.timing {
         midly::Timing::Metrical(x) => x.as_int() as u32,
-        midly::Timing::Timecode(_x, _y) => 1,
+        midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
+        //  https://en.wikipedia.org/wiki/MIDI_timecode
     };
 
     let list_tracks = matches.is_present("list");
@@ -136,12 +137,23 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     midly::EventKind::Escape(_) => (),
                     midly::EventKind::Meta(mm) => {
                         match mm {
-                            midly::MetaMessage::Text(raw) |
-                            midly::MetaMessage::ProgramName(raw) |
-                            midly::MetaMessage::DeviceName(raw) |
-                            midly::MetaMessage::InstrumentName(raw) |
+                            midly::MetaMessage::Text(raw) => {
+                                println!("  Text: {}",String::from_utf8_lossy(raw));
+                            },
+                            midly::MetaMessage::ProgramName(raw) => {
+                                println!("  Program name: {}",String::from_utf8_lossy(raw));
+                            },
+                            midly::MetaMessage::DeviceName(raw) => {
+                                println!("  Device name: {}",String::from_utf8_lossy(raw));
+                            },
+                            midly::MetaMessage::InstrumentName(raw) => {
+                                println!("  Instrument name: {}",String::from_utf8_lossy(raw));
+                            },
                             midly::MetaMessage::TrackName(raw) => {
-                                println!("  {}",String::from_utf8_lossy(raw));
+                                println!("  Track name: {}",String::from_utf8_lossy(raw));
+                            },
+                            midly::MetaMessage::Tempo(ms_per_beat) => {
+                                println!("  Tempo: {:?}",ms_per_beat);
                             },
                             _ => ()
                         }
@@ -162,17 +174,35 @@ fn main() -> Result<(), Box<std::error::Error>> {
     for i in 0..smf.tracks.len() {
         let st = show_tracks.contains(&i);
         let pt = play_tracks.contains(&i);
-        if st || pt {
-            tracks.push((0, smf.tracks[i].iter(), None, st, pt));
-        }
+        tracks.push((0, 0, smf.tracks[i].iter(), None, st, pt));
     }
 
     let mut timeline = vec![(0, vec![], vec![NoteState::Off; 128])];
+    let mut microseconds_per_beat = None;
     loop {
         if tracks.len() > 1 {
-            tracks.sort_by_key(|x| u32::max_value() - x.0);
+            tracks.sort_by_key(|x| u32::max_value()
+                                    - x.0 
+                                    - match (x.1 as u32,microseconds_per_beat) {
+                                        (0,_) => 0,
+                                        (ticks,None) => ticks,
+                                        (ticks,Some(mspb)) => {
+                                            (ticks as u64 * mspb as u64
+                                                    / ppqn as u64
+                                                    / 1000) as u32
+                                        }
+                                    });
         }
-        if let Some((t, mut t_iter, m, st, pt)) = tracks.pop() {
+        if let Some((t, ticks, mut t_iter, m, st, pt)) = tracks.pop() {
+            let dt = match ticks as u64 {
+                0 => 0,
+                ticks => {
+                    (ticks * microseconds_per_beat.unwrap() as u64
+                            / ppqn as u64
+                            / 1000) as u32
+                }
+            };
+            let t = t + dt;
             let mut n = timeline.len() - 1;
             if t > timeline[n].0 {
                 let note_state = timeline[timeline.len() - 1]
@@ -205,22 +235,32 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 }
             }
             if let Some(ev) = t_iter.next() {
-                let dt = ev.delta.as_int() * tref / 120 / 4;
-                if let midly::EventKind::Midi {
-                    channel: _c,
-                    message: m,
-                } = ev.kind
-                {
-                    tracks.push((t + dt, t_iter, Some(m), st, pt));
-                } else {
-                    println!("=> {:#?}", ev);
-                    tracks.push((t + dt, t_iter, None, st, pt));
+                match ev.kind {
+                    midly::EventKind::Meta(midly::MetaMessage::Tempo(ms_per_beat)) => {
+                        println!("Tempo => {:#?}", ev);
+                        microseconds_per_beat = Some(ms_per_beat.as_int());
+                    },
+                    _ => ()
+                }
+                match ev.kind {
+                    midly::EventKind::Midi {
+                        channel: _c,
+                        message: m,
+                    } => {
+                        tracks.push((t, ev.delta.as_int(), t_iter, Some(m), st, pt));
+                    }, 
+                    _ => {
+                        println!("=> {:#?}", ev);
+                        tracks.push((t, ev.delta.as_int(), t_iter, None, st, pt));
+                    }
                 }
             }
         } else {
             break;
         }
     }
+
+    //return Ok(());
 
     println!("output");
     let midi_out = MidiOutput::new("My Test Output")?;
