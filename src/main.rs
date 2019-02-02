@@ -9,7 +9,7 @@ use simple_logging;
 use midir::MidiOutput;
 use midly;
 
-use clap::{crate_authors, crate_version, value_t};
+use clap::{crate_authors, crate_version, value_t, values_t};
 use clap::{App, Arg};
 use indoc::indoc;
 
@@ -62,6 +62,21 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 .help("Set number of note steps to transpose"),
         )
         .arg(
+            Arg::with_name("show")
+                .required_unless("list")
+                .short("s")
+                .long("show-tracks")
+                .takes_value(true)
+                .multiple(true)
+                .help("Show the tracks as falling notes"),
+        )
+        .arg(
+            Arg::with_name("list")
+                .short("l")
+                .long("list-tracks")
+                .help("List the tracks in the midi file"),
+        )
+        .arg(
             Arg::with_name("RD64")
                 .long("rd64")
                 .help("Select 64 key Piano like Roland RD-64"),
@@ -92,17 +107,57 @@ fn main() -> Result<(), Box<std::error::Error>> {
     };
 
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi).unwrap();
-    println!("{:#?}", smf);
     println!("{:#?}", smf.header.timing);
     let tref = match smf.header.timing {
         midly::Timing::Metrical(x) => x.as_int() as u32,
         midly::Timing::Timecode(_x, _y) => 1,
     };
 
+    let list_tracks = matches.is_present("list");
+    if list_tracks {
+        for (i,trk) in smf.tracks.iter().enumerate() {
+            println!("Track {}:",i);
+            for evt in trk.iter() {
+                match evt.kind {
+                    midly::EventKind::Midi {
+                        channel: _c,
+                        message: _m
+                    } => (),
+                    midly::EventKind::SysEx(_) => (),
+                    midly::EventKind::Escape(_) => (),
+                    midly::EventKind::Meta(mm) => {
+                        match mm {
+                            midly::MetaMessage::Text(raw) |
+                            midly::MetaMessage::ProgramName(raw) |
+                            midly::MetaMessage::DeviceName(raw) |
+                            midly::MetaMessage::InstrumentName(raw) |
+                            midly::MetaMessage::TrackName(raw) => {
+                                println!("  {}",String::from_utf8_lossy(raw));
+                            },
+                            _ => ()
+                        }
+                    },
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    let show_tracks = values_t!(matches.values_of("show"), usize)
+                                .unwrap_or_else(|e| e.exit());;
+
+
     // Reorder all midi message on timeline
     let mut tracks = vec![];
-    tracks.push((0, smf.tracks[1].iter(), None));
-    tracks.push((0, smf.tracks[2].iter(), None));
+    for i in show_tracks {
+        if i >= smf.tracks.len() {
+            println!("Ignore non-existing track: {}",i);
+        }
+        else {
+            tracks.push((0, smf.tracks[i].iter(), None));
+        }
+    }
+
     let mut timeline = vec![(0, vec![], vec![NoteState::Off; 128])];
     loop {
         if tracks.len() > 1 {

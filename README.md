@@ -47,6 +47,9 @@ rusthesia -h
 ## Todo
 
 - Refactoring and code quality
+- Derive timing from midi file
+- Long pressed keys (start before and end after visible region) are not drawn
+- Make tracks selectable
 - Create video
 - Speed up by using e.g. one large sdl2 surface
 - Nicer looking output
