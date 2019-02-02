@@ -62,6 +62,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 .help("Set number of note steps to transpose"),
         )
         .arg(
+            Arg::with_name("play")
+                .required_unless("list")
+                .short("p")
+                .long("play-tracks")
+                .takes_value(true)
+                .multiple(true)
+                .help("Output these tracks as midi"),
+        )
+        .arg(
             Arg::with_name("show")
                 .required_unless("list")
                 .short("s")
@@ -145,16 +154,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let show_tracks = values_t!(matches.values_of("show"), usize)
                                 .unwrap_or_else(|e| e.exit());;
-
+    let play_tracks = values_t!(matches.values_of("play"), usize)
+                                .unwrap_or_else(|e| e.exit());;
 
     // Reorder all midi message on timeline
     let mut tracks = vec![];
-    for i in show_tracks {
-        if i >= smf.tracks.len() {
-            println!("Ignore non-existing track: {}",i);
-        }
-        else {
-            tracks.push((0, smf.tracks[i].iter(), None));
+    for i in 0..smf.tracks.len() {
+        let st = show_tracks.contains(&i);
+        let pt = play_tracks.contains(&i);
+        if st || pt {
+            tracks.push((0, smf.tracks[i].iter(), None, st, pt));
         }
     }
 
@@ -163,8 +172,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if tracks.len() > 1 {
             tracks.sort_by_key(|x| u32::max_value() - x.0);
         }
-        if let Some((t, mut t_iter, m)) = tracks.pop() {
-            let n = timeline.len() - 1;
+        if let Some((t, mut t_iter, m, st, pt)) = tracks.pop() {
+            let mut n = timeline.len() - 1;
             if t > timeline[n].0 {
                 let note_state = timeline[timeline.len() - 1]
                     .2
@@ -175,21 +184,25 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     })
                     .collect::<Vec<_>>();
                 timeline.push((t, vec![], note_state));
+                n += 1;
             }
-            let n = timeline.len() - 1;
-            timeline[n].1.push(m.clone());
-            match m {
-                Some(midly::MidiMessage::NoteOn(p1, p2)) => {
-                    timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
-                        NoteState::Pressed
-                    } else {
-                        NoteState::Off
-                    };
+            if pt {
+                timeline[n].1.push(m.clone());
+            }
+            if st {
+                match m {
+                    Some(midly::MidiMessage::NoteOn(p1, p2)) => {
+                        timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
+                            NoteState::Pressed
+                        } else {
+                            NoteState::Off
+                        };
+                    }
+                    Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
+                        timeline[n].2[p1.as_int() as usize] = NoteState::Off;
+                    }
+                    m => println!("=> {:#?}", m),
                 }
-                Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
-                    timeline[n].2[p1.as_int() as usize] = NoteState::Off;
-                }
-                m => println!("=> {:#?}", m),
             }
             if let Some(ev) = t_iter.next() {
                 let dt = ev.delta.as_int() * tref / 120 / 4;
@@ -198,10 +211,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     message: m,
                 } = ev.kind
                 {
-                    tracks.push((t + dt, t_iter, Some(m)));
+                    tracks.push((t + dt, t_iter, Some(m), st, pt));
                 } else {
                     println!("=> {:#?}", ev);
-                    tracks.push((t + dt, t_iter, None));
+                    tracks.push((t + dt, t_iter, None, st, pt));
                 }
             }
         } else {
