@@ -82,6 +82,8 @@ In order to play the lower and show only the upper, use the following command:
         Wakeups limit:   45000
         Limit duration:  300s
         Wakeups caused:  45001
+    - midi player should be in separate thread with realtime capability
+    - allow mapping of tracks to channels
 - video file
     - Create video mpeg or mp4
     - Write gif files with gifski
