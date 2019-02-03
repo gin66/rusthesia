@@ -144,12 +144,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
     if list_tracks {
         for (i, trk) in smf.tracks.iter().enumerate() {
             println!("Track {}:", i);
+            let mut used_channels = vec![false; 16];
             for evt in trk.iter() {
                 match evt.kind {
                     midly::EventKind::Midi {
-                        channel: _c,
+                        channel: c,
                         message: _m,
-                    } => (),
+                    } => {
+                        used_channels[c.as_int() as usize] = true;
+                    }
                     midly::EventKind::SysEx(_) => (),
                     midly::EventKind::Escape(_) => (),
                     midly::EventKind::Meta(mm) => match mm {
@@ -175,6 +178,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     },
                 }
             }
+            println!(
+                "  Used channels: {:?}",
+                used_channels
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, v)| **v)
+                    .map(|(c, _)| c)
+                    .collect::<Vec<_>>()
+            );
         }
         return Ok(());
     }
@@ -233,7 +245,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
             if st {
                 match m {
-                    Some((_c,midly::MidiMessage::NoteOn(p1, p2))) => {
+                    Some((_c, midly::MidiMessage::NoteOn(p1, p2))) => {
                         timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
                             NoteState::Pressed(i)
                         } else {
@@ -241,7 +253,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         };
                         maxtime = timeline[timeline.len() - 1].0;
                     }
-                    Some((_c,midly::MidiMessage::NoteOff(p1, _p2))) => {
+                    Some((_c, midly::MidiMessage::NoteOff(p1, _p2))) => {
                         timeline[n].2[p1.as_int() as usize] = NoteState::Off;
                         maxtime = timeline[timeline.len() - 1].0;
                     }
@@ -261,7 +273,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         channel: c,
                         message: m,
                     } => {
-                        tracks.push((t, ev.delta.as_int(), i, t_iter, Some((c,m)), st, pt));
+                        tracks.push((t, ev.delta.as_int(), i, t_iter, Some((c, m)), st, pt));
                     }
                     _ => {
                         println!("=> {:#?}", ev);
@@ -335,11 +347,19 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 curr_pos = next_head_pos;
                 for m in timeline[curr_pos].1.iter() {
                     match m {
-                        Some((c,midly::MidiMessage::NoteOn(p1, p2))) => conn_out
-                            .send(&[0x90 + c.as_int(), (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
+                        Some((c, midly::MidiMessage::NoteOn(p1, p2))) => conn_out
+                            .send(&[
+                                0x90 + c.as_int(),
+                                (p1.as_int() as i8 - shift_key) as u8,
+                                p2.as_int(),
+                            ])
                             .unwrap(),
-                        Some((c,midly::MidiMessage::NoteOff(p1, p2))) => conn_out
-                            .send(&[0x80 + c.as_int(), (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
+                        Some((c, midly::MidiMessage::NoteOff(p1, p2))) => conn_out
+                            .send(&[
+                                0x80 + c.as_int(),
+                                (p1.as_int() as i8 - shift_key) as u8,
+                                p2.as_int(),
+                            ])
                             .unwrap(),
                         m => println!("=> {:#?}", m),
                     }
