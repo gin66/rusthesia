@@ -44,7 +44,7 @@ fn key_to_white(key: u32) -> u32 {
 }
 
 fn trk2col(trk: usize, key: u32) -> Color {
-    match (trk / 2, is_white(key)) {
+    match (trk % 2, is_white(key)) {
         (0, true) => Color::RGB(0, 255, 255),
         (0, false) => Color::RGB(0, 200, 200),
         (_, true) => Color::RGB(255, 0, 255),
