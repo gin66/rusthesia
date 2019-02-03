@@ -233,7 +233,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
             if st {
                 match m {
-                    Some(midly::MidiMessage::NoteOn(p1, p2)) => {
+                    Some((_c,midly::MidiMessage::NoteOn(p1, p2))) => {
                         timeline[n].2[p1.as_int() as usize] = if p2.as_int() > 0 {
                             NoteState::Pressed(i)
                         } else {
@@ -241,11 +241,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         };
                         maxtime = timeline[timeline.len() - 1].0;
                     }
-                    Some(midly::MidiMessage::NoteOff(p1, _p2)) => {
+                    Some((_c,midly::MidiMessage::NoteOff(p1, _p2))) => {
                         timeline[n].2[p1.as_int() as usize] = NoteState::Off;
                         maxtime = timeline[timeline.len() - 1].0;
                     }
-                    m => println!("=> {:#?}", m),
+                    v => println!("=> {:#?}", v),
                 }
             }
             if let Some(ev) = t_iter.next() {
@@ -258,10 +258,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 }
                 match ev.kind {
                     midly::EventKind::Midi {
-                        channel: _c,
+                        channel: c,
                         message: m,
                     } => {
-                        tracks.push((t, ev.delta.as_int(), i, t_iter, Some(m), st, pt));
+                        tracks.push((t, ev.delta.as_int(), i, t_iter, Some((c,m)), st, pt));
                     }
                     _ => {
                         println!("=> {:#?}", ev);
@@ -335,11 +335,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 curr_pos = next_head_pos;
                 for m in timeline[curr_pos].1.iter() {
                     match m {
-                        Some(midly::MidiMessage::NoteOn(p1, p2)) => conn_out
-                            .send(&[0x90, (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
+                        Some((c,midly::MidiMessage::NoteOn(p1, p2))) => conn_out
+                            .send(&[0x90 + c.as_int(), (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
                             .unwrap(),
-                        Some(midly::MidiMessage::NoteOff(p1, p2)) => conn_out
-                            .send(&[0x80, (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
+                        Some((c,midly::MidiMessage::NoteOff(p1, p2))) => conn_out
+                            .send(&[0x80 + c.as_int(), (p1.as_int() as i8 - shift_key) as u8, p2.as_int()])
                             .unwrap(),
                         m => println!("=> {:#?}", m),
                     }

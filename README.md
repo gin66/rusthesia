@@ -77,6 +77,11 @@ In order to play the lower and show only the upper, use the following command:
 - Refactoring and code quality
     - Derive the waterfall directly from the midi tracks
     - Do not redraw piano always
+    - Macos does not like too many wakeups:
+        Wakeups:         45001 wakeups over the last 281 seconds (160 wakeups per second average), exceeding limit of 150 wakeups per second over 300 seconds
+        Wakeups limit:   45000
+        Limit duration:  300s
+        Wakeups caused:  45001
 - video file
     - Create video mpeg or mp4
     - Write gif files with gifski
