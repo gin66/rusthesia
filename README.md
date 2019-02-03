@@ -77,7 +77,9 @@ In order to play the lower and show only the upper, use the following command:
 - Refactoring and code quality
     - Derive the waterfall directly from the midi tracks
     - Do not redraw piano always
-- Create video
+- video file
+    - Create video mpeg or mp4
+    - Write gif files with gifski
 - Nicer looking output
     - Waterfall background with lines for orientation
     - visual effect for pressed key on waterfall side
@@ -90,9 +92,15 @@ In order to play the lower and show only the upper, use the following command:
 - Change most of the prints into log-commands and enable logging per command line option
 - Do not exit on end
 - Recognize chords in realtime
-- Set up travis
 - and more...
+
+## License
+
+The attached LICENSE file defines the license for the code of this crate only - specifically before compiling or linking. The resulting binary after linking may be problematic in regard to license incompatibilities of included crates.
+
+Consequently automated builds outputting a binary cannot be set up.
 
 ## Final Words
 
 The application works, but still this is a quick hack and not polished for code review ;-)
+
