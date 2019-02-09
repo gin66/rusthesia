@@ -102,17 +102,28 @@ In the meantime have tried on deepin linux, which is IMHO based on Debian.
 This steps to be executed for compilation:
 
 ```
-sudo apt install librtaudio-dev libsdl2-2.0 cmake libfreetype6-dev libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev
+sudo apt install librtaudio-dev libsdl2-2.0 cmake libfreetype6-dev libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev libfontconfig1-dev
 ```
 
 Unfortunatly it does not work for these issues:
 
-* Lots of font config errors after selecting midi output port
-* Long pause after font config errors
+* Long pause before windows comes up
 * Super slow
 * No output if using timidity -A
 
 Need further debugging.
+
+## Solutions for known issues
+
+### Linux
+
+If the application outputs lots of fontconfig errors, then there could be a libfontconfig mismatch. Please check, if pkg-config is able to find fontconfig:
+
+```
+pkg-config --list-all|grep fontconfig
+```
+
+If there is no output, then crate *servo-fontconfig-sys* will build its own version, which can be incompatible. Installation of libconfig1-dev has fixed this.
 
 ## License
 
