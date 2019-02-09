@@ -105,7 +105,7 @@ This steps to be executed for compilation:
 sudo apt install librtaudio-dev libsdl2-2.0 cmake libfreetype6-dev libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev
 ```
 
-Unfortunatly it does not work for two issues:
+Unfortunatly it does not work for these issues:
 
 * Lots of font config errors after selecting midi output port
 * Long pause after font config errors
