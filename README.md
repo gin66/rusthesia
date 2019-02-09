@@ -98,6 +98,22 @@ As per info from Samuel Da Moto, the code works on linux:
 > then to install a system wide midi sequencer such as timidity and run
 > it (using timidity -iA) to get music being played.
 
+In the meantime have tried on deepin linux, which is IMHO based on Debian.
+This steps to be executed for compilation:
+
+```
+sudo apt install librtaudio-dev libsdl2-2.0 cmake libfreetype6-dev libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev
+```
+
+Unfortunatly it does not work for two issues:
+
+* Lots of font config errors after selecting midi output port
+* Long pause after font config errors
+* Super slow
+* No output if using timidity -A
+
+Need further debugging.
+
 ## License
 
 The attached LICENSE file defines the license for the code of this crate only - specifically before compiling or linking. The resulting binary after linking may be problematic in regard to license incompatibilities of included crates.
