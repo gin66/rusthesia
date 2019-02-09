@@ -82,7 +82,7 @@ Todo list is managed under [projects](https://github.com/gin66/rusthesia/project
 
 #### Logic Pro/X
 
-Have not been able to make Logic Pro/X works as a synthesizer with channels assigned to different instruments. Still keep looking for the needed hidden feature.
+Have not been able to use Logic Pro/X as a synthesizer with channels assigned to different instruments. Still keep looking for the needed hidden feature.
 
 #### MainStage
 
