@@ -13,11 +13,13 @@ use clap::{crate_authors, crate_version, value_t, values_t};
 use clap::{App, Arg};
 use indoc::indoc;
 
+use font_kit;
 use sdl2::event::Event;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use sdl2_unifont::renderer::SurfaceRenderer;
+
+//mod midisequencer;
 
 #[derive(Copy, Clone)]
 enum NoteState {
@@ -139,6 +141,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
         midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
         //  https://en.wikipedia.org/wiki/MIDI_timecode
     };
+
+    //let sequencer = midisequencer::MidiSequencer::new();
+    //sequencer.midifile(&midi_fname);
 
     let list_tracks = matches.is_present("list");
     if list_tracks {
@@ -314,12 +319,32 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     };
 
-    trace!("\nOpening connection");
-    let mut conn_out = midi_out.connect(out_port, "midir-test")?;
-    trace!("Connection open");
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
+    let ttf_context = sdl2::ttf::init().unwrap();
+    let opt_font = if let Ok(font) = font_kit::source::SystemSource::new().select_by_postscript_name("ArialMT") {
+        let res_font = match font {
+            font_kit::handle::Handle::Path {path,font_index} => {
+                ttf_context.load_font_at_index(path, font_index, 24)
+            },
+            font_kit::handle::Handle::Memory {bytes,font_index} => {
+                //let bytes = (*bytes).clone();
+                //let buf = sdl2::rwops::RWops::from_read(bytes).unwrap();
+                //ttf_context.load_font_at_index_from_rwops(buf,font_index,24)
+                Err("not supported".to_string())
+            }
+        };
+        res_font.ok()
+    }
+    else {
+        None
+    };
+    println!("Have font={:?}",opt_font.is_some());
+
+    trace!("\nOpening connection");
+    let mut conn_out = midi_out.connect(out_port, "midir-test")?;
+    trace!("Connection open");
     let window = video_subsystem
         .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
         .position_centered()
@@ -341,6 +366,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut paused = false;
     let mut opt_waterfall: Option<sdl2::render::Texture> = None;
     let mut opt_last_draw_instant: Option<Instant> = None;
+    let mut finger_msg = format!("----");
     'running: loop {
         if next_head_pos < timeline.len() {
             if timeline[next_head_pos].0 <= realtime {
@@ -554,25 +580,27 @@ fn main() -> Result<(), Box<std::error::Error>> {
             canvas.set_draw_color(Color::RGB(0, 0, 255));
             canvas.fill_rects(&black_keys_on).unwrap();
 
-            let mut renderer =
-                SurfaceRenderer::new(Color::RGB(0, 0, 0), Color::RGBA(100, 255, 255, 255));
-            renderer.scale = 1;
+            if let Some(ref font) = opt_font.as_ref() {
+                let mut lines = vec![];
+                lines.push(format!("{} ms", realtime));
+                lines.push(format!("shift = {}", shift_key));
+                lines.push(finger_msg.clone());
 
-            let surface = renderer.draw(&format!("{} ms", realtime)).unwrap();
-            let demo_tex = texture_creator
-                .create_texture_from_surface(surface)
-                .unwrap();
-            canvas
-                .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 10, 100, 20))
-                .unwrap();
-
-            let surface = renderer.draw(&format!("shift={}", shift_key)).unwrap();
-            let demo_tex = texture_creator
-                .create_texture_from_surface(surface)
-                .unwrap();
-            canvas
-                .copy(&demo_tex, None, sdl2::rect::Rect::new(10, 30, 100, 20))
-                .unwrap();
+                let mut y = 10;
+                for (i,line) in lines.into_iter().enumerate() {
+                    if let Ok((width,height)) = font.size_of(&line) {
+                        if let Ok(surface) = font.render(&line).solid(Color::RGBA(255,255,255,255)) {
+                            let demo_tex = texture_creator
+                                .create_texture_from_surface(surface)
+                                .unwrap();
+                            canvas
+                                .copy(&demo_tex, None, sdl2::rect::Rect::new(10, y, width, height))
+                                .unwrap();
+                            y += height as i32 + 2;
+                        }
+                    }
+                }
+            }
 
             canvas.present();
         }
@@ -611,6 +639,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 } => {
                     shift_key -= 1;
                     opt_waterfall = None;
+                }
+                Event::MultiGesture {
+                    timestamp,touch_id,x,y,num_fingers,..
+                } => {
+                    finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2}", 
+                                      timestamp, touch_id, num_fingers,
+                                      x,y);
+                }
+                Event::FingerMotion {
+                    timestamp,touch_id,finger_id,x,y,dx,dy,pressure:_pressure
+                } => {
+                    //finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2} dx={:.2} dy={:.2}", 
+                    //                  timestamp, touch_id, finger_id,
+                    //                  x,y,dx,dy);
                 }
                 _ => {}
             }

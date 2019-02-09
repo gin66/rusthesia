@@ -74,38 +74,32 @@ In order to play the lower and show only the upper, use the following command:
 
 ## Todo
 
-- Refactoring and code quality
-    - Derive the waterfall directly from the midi tracks
-    - Do not redraw piano always
-    - Macos does not like too many wakeups:
-        Wakeups:         45001 wakeups over the last 281 seconds (160 wakeups per second average), exceeding limit of 150 wakeups per second over 300 seconds
-        Wakeups limit:   45000
-        Limit duration:  300s
-        Wakeups caused:  45001
-    - midi player should be in separate thread with realtime capability
-    - allow mapping of tracks to channels
-- video file
-    - Create video mpeg or mp4
-    - Write gif files with gifski
-- Nicer looking output
-    - Waterfall background with lines for orientation
-    - visual effect for pressed key on waterfall side
-- Native macos app with fruitbasket
-- Userinterface
-    - Toggle track display by pressing keys 0, 1, 2,...
-    - Allow shift by double finger gesture
-- Add pause before playing the midi
-- Handle all meta messages during playing
-- Change most of the prints into log-commands and enable logging per command line option
-- Do not exit on end
-- Recognize chords in realtime
-- and more...
+Todo list is managed under [projects](https://github.com/gin66/rusthesia/projects)
+
+## Synthesizer
+
+### Logic Pro/X
+
+Have not been able to make Logic Pro/X works as a synthesizer with channels assigned to different instruments. Still keep looking for the needed hidden feature.
+
+### MainStage
+
+Works, but need to create a concert with keyboard per channel, which is not very convenient.
 
 ## License
 
 The attached LICENSE file defines the license for the code of this crate only - specifically before compiling or linking. The resulting binary after linking may be problematic in regard to license incompatibilities of included crates.
 
-Consequently automated builds outputting a binary cannot be set up.
+From current point of view to be checked:
+    BSD-3-Clause (1): simple-logging
+    ISC (1): rdrand
+    N/A (2): fuchsia-cprng
+    Unlicense (1): midly
+
+AFAIK is incompatible:
+    GPL-3.0-or-later (1): sdl2-unifont
+
+Consequently automated builds resulting in a public available binary cannot be set up for now.
 
 ## Final Words
 

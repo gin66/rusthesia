@@ -16,12 +16,11 @@ log = "0.4"
 simple-logging = "2.0"
 midir = "0.5"
 midly = "0.1"
-sdl2-unifont = "1.0"
 clap = "2.32"
 indoc = "0.3"
-gifski = "0.8"
+font-kit = "0.1"
 
 [dependencies.sdl2]
 version = "0.31"
 default-features = false
-features = ["gfx"]
+features = ["gfx","ttf"]
