@@ -78,13 +78,25 @@ Todo list is managed under [projects](https://github.com/gin66/rusthesia/project
 
 ## Synthesizer
 
-### Logic Pro/X
+### macos
+
+#### Logic Pro/X
 
 Have not been able to make Logic Pro/X works as a synthesizer with channels assigned to different instruments. Still keep looking for the needed hidden feature.
 
-### MainStage
+#### MainStage
 
 Works, but need to create a concert with keyboard per channel, which is not very convenient.
+
+### Linux
+
+As per info from Samuel Da Moto, the code works on linux:
+
+> No need to change a single
+> line of code or configuration whatsoever. One only need to install the
+> libsdl2-dev and libsd2-gfx-dev packages for your project to build. And
+> then to install a system wide midi sequencer such as timidity and run
+> it (using timidity -iA) to get music being played.
 
 ## License
 
