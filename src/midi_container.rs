@@ -51,38 +51,30 @@ impl<'m> MidiIterator<'m> {
     }        
 }
 impl<'m> Iterator for MidiIterator<'m> {
-    type Item = (usize, usize, midly::Event<'m>);
+    type Item = (usize, usize, &'m midly::Event<'m>);
     fn next(&mut self) -> Option<Self::Item> {
         self.track_parsers.sort();
-        None
+        match self.track_parsers[0].trk_iter.next() {
+            None => None,
+            Some(m) => Some((0,0,m))
+        }
     }
 }
 
 pub struct MidiContainer<'m> {
-    raw_midi: Vec<u8>,
-    opt_smf: Option<midly::Smf<'m,Vec<midly::Event<'m>>>>,
+    smf: midly::Smf<'m,Vec<midly::Event<'m>>>,
 }
 impl<'m> MidiContainer<'m> {
-    pub fn from_file(midi_fname: &str) -> Result<MidiContainer<'m>,Error> {
-        let mut raw_midi = vec!{};
-        let mut f = File::open(midi_fname)?;
-        f.read_to_end(&mut raw_midi)?;
+    pub fn from_buf(smf_buf: &'m midly::SmfBuffer) -> Result<MidiContainer<'m>,Error> {
         Ok(MidiContainer {
-            raw_midi,
-            opt_smf: None,
+            smf: smf_buf.parse()
+                                .map_err(|e|Error::new(ErrorKind::Other,format!("{:?}",e)))?
         })
     }
-    pub fn read_file(&'m mut self) -> Result<(),Error> {
-        self.opt_smf = Some(midly::Smf::read(&self.raw_midi)
-                                .map_err(|e|Error::new(ErrorKind::Other,format!("{:?}",e)))?);
-        Ok(())
-    }
-    pub fn iter(&'m mut self) -> MidiIterator<'m> {
+    pub fn iter(&'m self) -> MidiIterator<'m> {
         let mut mi = MidiIterator::new();
-        if let Some(ref smf) = self.opt_smf.as_ref() {
-            for (i,trk) in smf.tracks.iter().enumerate() {
-                mi.add_track(i, trk.iter());
-            }
+        for (i,trk) in self.smf.tracks.iter().enumerate() {
+            mi.add_track(i, trk.iter());
         }
         mi
     }

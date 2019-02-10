@@ -148,8 +148,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
         //  https://en.wikipedia.org/wiki/MIDI_timecode
     };
 
-    let mut container = midi_container::MidiContainer::from_file(&midi_fname)?;
-    container.read_file().unwrap();
+    let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+    let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
+    for evt in container.iter() {
+        println!("{:?}",evt);
+    }
 
     let list_tracks = matches.is_present("list");
     if list_tracks {
