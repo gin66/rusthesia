@@ -112,15 +112,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 .required(true)
                 .index(1),
         )
-        .arg(Arg::with_name("verbose")
-            .multiple(true)
-            .short("v"))
-        .arg(Arg::with_name("debug")
-            .short("d"))
+        .arg(Arg::with_name("verbose").multiple(true).short("v"))
+        .arg(Arg::with_name("debug").short("d"))
         .get_matches();
 
     let debug = matches.is_present("debug");
-    simple_logging::log_to_stderr(if debug {LevelFilter::Trace} else {LevelFilter::Info});
+    simple_logging::log_to_stderr(if debug {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Info
+    });
 
     let midi_fname = matches.value_of("MIDI").unwrap();
     let mut f = File::open(midi_fname)?;
@@ -151,8 +152,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
     for evt in container.iter() {
-        println!("{:?}",evt);
+        println!("{:?}", evt);
     }
+    return Ok(());
 
     let list_tracks = matches.is_present("list");
     if list_tracks {
@@ -189,7 +191,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             trace!("  Tempo: {:?}", ms_per_beat);
                         }
                         midly::MetaMessage::EndOfTrack => (),
-                        mm => warn!("Not treated meta message: {:?}",mm)
+                        mm => warn!("Not treated meta message: {:?}", mm),
                     },
                 }
             }
@@ -333,12 +335,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let video_subsystem = sdl_context.video().unwrap();
 
     let ttf_context = sdl2::ttf::init().unwrap();
-    let opt_font = if let Ok(font) = font_kit::source::SystemSource::new().select_by_postscript_name("ArialMT") {
+    let opt_font = if let Ok(font) =
+        font_kit::source::SystemSource::new().select_by_postscript_name("ArialMT")
+    {
         let res_font = match font {
-            font_kit::handle::Handle::Path {path,font_index} => {
+            font_kit::handle::Handle::Path { path, font_index } => {
                 ttf_context.load_font_at_index(path, font_index, 24)
-            },
-            font_kit::handle::Handle::Memory {bytes,font_index} => {
+            }
+            font_kit::handle::Handle::Memory { bytes, font_index } => {
                 //let bytes = (*bytes).clone();
                 //let buf = sdl2::rwops::RWops::from_read(bytes).unwrap();
                 //ttf_context.load_font_at_index_from_rwops(buf,font_index,24)
@@ -346,11 +350,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         };
         res_font.ok()
-    }
-    else {
+    } else {
         None
     };
-    println!("Have font={:?}",opt_font.is_some());
+    println!("Have font={:?}", opt_font.is_some());
 
     trace!("\nOpening connection");
     let mut conn_out = midi_out.connect(out_port, "midir-test")?;
@@ -597,9 +600,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 lines.push(finger_msg.clone());
 
                 let mut y = 10;
-                for (i,line) in lines.into_iter().enumerate() {
-                    if let Ok((width,height)) = font.size_of(&line) {
-                        if let Ok(surface) = font.render(&line).solid(Color::RGBA(255,255,255,255)) {
+                for (i, line) in lines.into_iter().enumerate() {
+                    if let Ok((width, height)) = font.size_of(&line) {
+                        if let Ok(surface) =
+                            font.render(&line).solid(Color::RGBA(255, 255, 255, 255))
+                        {
                             let demo_tex = texture_creator
                                 .create_texture_from_surface(surface)
                                 .unwrap();
@@ -651,16 +656,29 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     opt_waterfall = None;
                 }
                 Event::MultiGesture {
-                    timestamp,touch_id,x,y,num_fingers,..
+                    timestamp,
+                    touch_id,
+                    x,
+                    y,
+                    num_fingers,
+                    ..
                 } => {
-                    finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2}", 
-                                      timestamp, touch_id, num_fingers,
-                                      x,y);
+                    finger_msg = format!(
+                        "t={} id={} fid={} x={:.2} y={:.2}",
+                        timestamp, touch_id, num_fingers, x, y
+                    );
                 }
                 Event::FingerMotion {
-                    timestamp,touch_id,finger_id,x,y,dx,dy,pressure:_pressure
+                    timestamp,
+                    touch_id,
+                    finger_id,
+                    x,
+                    y,
+                    dx,
+                    dy,
+                    pressure: _pressure,
                 } => {
-                    //finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2} dx={:.2} dy={:.2}", 
+                    //finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2} dx={:.2} dy={:.2}",
                     //                  timestamp, touch_id, finger_id,
                     //                  x,y,dx,dy);
                 }
