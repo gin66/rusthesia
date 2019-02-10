@@ -110,6 +110,9 @@ impl<'m> MidiContainer<'m> {
         }
         mi
     }
+    pub fn header(&'m self) -> &midly::Header {
+        &self.smf.header
+    }
 }
 
 #[cfg(test)]
@@ -152,6 +155,17 @@ mod tests {
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         assert_eq!(container.iter().filter(
                 |(_time,track_id,_evt)| *track_id == 2).count(),2423-6-1679);
+    }
+
+    #[test]
+    fn test_05() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        match container.header().timing {
+            midly::Timing::Metrical(t) => assert_eq!(t.as_int(),384),
+            _ => panic!("wrong type")
+        }
     }
 }
 
