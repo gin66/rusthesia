@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     simple_logging::log_to_stderr(if debug {
         LevelFilter::Trace
     } else {
-        LevelFilter::Info
+        LevelFilter::Error
     });
 
     let midi_fname = matches.value_of("MIDI").unwrap();
@@ -142,27 +142,27 @@ fn main() -> Result<(), Box<std::error::Error>> {
     };
 
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi)?;
-    trace!("{:#?}", smf.header.timing);
-    let ppqn = match smf.header.timing {
+    let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+    let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
+    if debug {
+        for evt in container.iter() {
+            trace!("{:?}", evt);
+        }
+    }
+
+    let ppqn = match container.header().timing {
         midly::Timing::Metrical(x) => x.as_int() as u32,
         midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
         //  https://en.wikipedia.org/wiki/MIDI_timecode
     };
 
-    let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
-    let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
-    for evt in container.iter() {
-        println!("{:?}", evt);
-    }
-    return Ok(());
-
     let list_tracks = matches.is_present("list");
     if list_tracks {
-        for (i, trk) in smf.tracks.iter().enumerate() {
+        for i in 0..smf.tracks.len() {
             println!("Track {}:", i);
             let mut used_channels = vec![false; 16];
-            for evt in trk.iter() {
-                match evt.kind {
+            for evt in container.iter().filter(|e| e.1 == i) {
+                match evt.2 {
                     midly::EventKind::Midi {
                         channel: c,
                         message: _m,
@@ -186,6 +186,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         }
                         midly::MetaMessage::TrackName(raw) => {
                             println!("  Track name: {}", String::from_utf8_lossy(raw));
+                        }
+                        midly::MetaMessage::MidiChannel(channel) => {
+                            println!("  Channel: {}", channel.as_int());
                         }
                         midly::MetaMessage::Tempo(ms_per_beat) => {
                             trace!("  Tempo: {:?}", ms_per_beat);
@@ -303,7 +306,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     }
 
-    return Ok(());
+    //return Ok(());
 
     println!("output");
     let midi_out = MidiOutput::new("My Test Output")?;
