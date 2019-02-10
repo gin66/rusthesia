@@ -111,3 +111,47 @@ impl<'m> MidiContainer<'m> {
         mi
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::midi_container;
+
+    #[test]
+    fn test_01() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        assert_eq!(container.iter().count(),2423);
+        //for evt in container.iter() {
+        //    println!("{:?}", evt);
+        //}
+    }
+
+    #[test]
+    fn test_02() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        assert_eq!(container.iter().filter(
+                |(_time,track_id,_evt)| *track_id == 0).count(),6);
+    }
+
+    #[test]
+    fn test_03() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        assert_eq!(container.iter().filter(
+                |(_time,track_id,_evt)| *track_id == 1).count(),1679);
+    }
+
+    #[test]
+    fn test_04() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        assert_eq!(container.iter().filter(
+                |(_time,track_id,_evt)| *track_id == 2).count(),2423-6-1679);
+    }
+}
+
