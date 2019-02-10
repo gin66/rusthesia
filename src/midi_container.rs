@@ -36,16 +36,23 @@ impl<'m> std::cmp::PartialOrd for TrackState<'m> {
 }
 impl<'m> std::cmp::Ord for TrackState<'m> {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.evt.is_some() != other.evt.is_some() {
-            if self.evt.is_some() {
-                Ordering::Greater
+        match (self.evt.is_some(),other.evt.is_some()) {
+            (false,false) => Ordering::Equal,
+            (false,true) => Ordering::Less,
+            (true,false) => Ordering::Greater,
+            (true,true) => {
+                match self.evt.as_ref().unwrap().kind {
+                    midly::EventKind::Meta(_) => Ordering::Less,
+                    _ => {
+                        match other.evt.as_ref().unwrap().kind {
+                            midly::EventKind::Meta(_) => Ordering::Greater,
+                            _ => {
+                                self.sort_key().cmp(&other.sort_key())
+                            } 
+                        }
+                    } 
+                }
             }
-            else {
-                Ordering::Less
-            }
-        }
-        else {
-            self.sort_key().cmp(&other.sort_key())
         }
     }
 }
