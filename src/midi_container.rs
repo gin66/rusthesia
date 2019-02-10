@@ -38,10 +38,10 @@ impl<'m> std::cmp::Ord for TrackState<'m> {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.evt.is_some() != other.evt.is_some() {
             if self.evt.is_some() {
-                Ordering::Less
+                Ordering::Greater
             }
             else {
-                Ordering::Greater
+                Ordering::Less
             }
         }
         else {
@@ -166,6 +166,19 @@ mod tests {
             midly::Timing::Metrical(t) => assert_eq!(t.as_int(),384),
             _ => panic!("wrong type")
         }
+    }
+
+    #[test]
+    fn test_06() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        let mut last_time = 0;
+        for (time,_,_) in container.iter() {
+            assert!(last_time <= time);
+            last_time = time;
+        }
+        assert_eq!(last_time,174720);
     }
 }
 
