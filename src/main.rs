@@ -19,7 +19,7 @@ use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 
-//mod midisequencer;
+mod midi_container;
 
 #[derive(Copy, Clone)]
 enum NoteState {
@@ -55,8 +55,6 @@ fn trk2col(trk: usize, key: u32) -> Color {
 }
 
 fn main() -> Result<(), Box<std::error::Error>> {
-    simple_logging::log_to_stderr(LevelFilter::Info);
-
     let matches = App::new("Rusthesia")
         .version(crate_version!())
         .author(crate_authors!("\n"))
@@ -114,7 +112,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 .required(true)
                 .index(1),
         )
+        .arg(Arg::with_name("verbose")
+            .multiple(true)
+            .short("v"))
+        .arg(Arg::with_name("debug")
+            .short("d"))
         .get_matches();
+
+    let debug = matches.is_present("debug");
+    simple_logging::log_to_stderr(if debug {LevelFilter::Trace} else {LevelFilter::Info});
 
     let midi_fname = matches.value_of("MIDI").unwrap();
     let mut f = File::open(midi_fname)?;
@@ -142,8 +148,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         //  https://en.wikipedia.org/wiki/MIDI_timecode
     };
 
-    //let sequencer = midisequencer::MidiSequencer::new();
-    //sequencer.midifile(&midi_fname);
+    let mut container = midi_container::MidiContainer::from_file(&midi_fname)?;
+    container.read_file().unwrap();
 
     let list_tracks = matches.is_present("list");
     if list_tracks {
@@ -179,7 +185,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         midly::MetaMessage::Tempo(ms_per_beat) => {
                             trace!("  Tempo: {:?}", ms_per_beat);
                         }
-                        _ => (),
+                        midly::MetaMessage::EndOfTrack => (),
+                        mm => warn!("Not treated meta message: {:?}",mm)
                     },
                 }
             }
@@ -291,7 +298,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     }
 
-    //return Ok(());
+    return Ok(());
 
     println!("output");
     let midi_out = MidiOutput::new("My Test Output")?;
