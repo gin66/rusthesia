@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::Read;
 use std::io::{Error, ErrorKind};
+use std::iter::Iterator;
+use std::cmp::Ordering;
 
 pub struct TrackState<'m> {
     trk_number: usize,
@@ -13,12 +15,31 @@ impl<'m> TrackState<'m> {
             trk_iter,
         }
     }
+    fn sort_key(&self) -> usize {
+        self.trk_number
+    }
+}
+impl<'m> std::cmp::PartialEq for TrackState<'m> {
+    fn eq(&self, other: &Self) -> bool {
+        self.sort_key() == other.sort_key()
+    }
+}
+impl<'m> std::cmp::Eq for TrackState<'m> {}
+impl<'m> std::cmp::PartialOrd for TrackState<'m> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<'m> std::cmp::Ord for TrackState<'m> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.sort_key().cmp(&other.sort_key())
+    }
 }
 
 pub struct MidiContainer<'m> {
     raw_midi: Vec<u8>,
     opt_smf: Option<midly::Smf<'m,Vec<midly::Event<'m>>>>,
-    track_parser: Vec<TrackState<'m>>,
+    track_parsers: Vec<TrackState<'m>>,
 }
 
 impl<'m> MidiContainer<'m> {
@@ -29,7 +50,7 @@ impl<'m> MidiContainer<'m> {
         Ok(MidiContainer {
             raw_midi,
             opt_smf: None,
-            track_parser: vec![],
+            track_parsers: vec![],
         })
     }
     pub fn read_file(&'m mut self) -> Result<(),Error> {
@@ -40,7 +61,15 @@ impl<'m> MidiContainer<'m> {
     pub fn init_play(&'m mut self) {
         for i in 0..self.opt_smf.as_ref().unwrap().tracks.len() {
             let ts = TrackState::new(i, self.opt_smf.as_ref().unwrap().tracks[i].iter());
-            self.track_parser.push(ts);
+            self.track_parsers.push(ts);
         }
+    }
+}
+
+impl<'m> Iterator for MidiContainer<'m> {
+    type Item = (usize, usize, midly::Event<'m>);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.track_parsers.sort();
+        None
     }
 }
