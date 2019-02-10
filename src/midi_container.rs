@@ -36,12 +36,32 @@ impl<'m> std::cmp::Ord for TrackState<'m> {
     }
 }
 
+pub struct MidiIterator<'m> {
+    track_parsers: Vec<TrackState<'m>>,
+}
+impl<'m> MidiIterator<'m> {
+    pub fn new() -> MidiIterator<'m> {
+        MidiIterator {
+            track_parsers: vec![],
+        }
+    }
+    pub fn add_track(&mut self, trk_number: usize, trk_iter: std::slice::Iter<'m,midly::Event<'m>>) {
+        let ts = TrackState::new(trk_number, trk_iter);
+        self.track_parsers.push(ts);
+    }        
+}
+impl<'m> Iterator for MidiIterator<'m> {
+    type Item = (usize, usize, midly::Event<'m>);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.track_parsers.sort();
+        None
+    }
+}
+
 pub struct MidiContainer<'m> {
     raw_midi: Vec<u8>,
     opt_smf: Option<midly::Smf<'m,Vec<midly::Event<'m>>>>,
-    track_parsers: Vec<TrackState<'m>>,
 }
-
 impl<'m> MidiContainer<'m> {
     pub fn from_file(midi_fname: &str) -> Result<MidiContainer<'m>,Error> {
         let mut raw_midi = vec!{};
@@ -50,7 +70,6 @@ impl<'m> MidiContainer<'m> {
         Ok(MidiContainer {
             raw_midi,
             opt_smf: None,
-            track_parsers: vec![],
         })
     }
     pub fn read_file(&'m mut self) -> Result<(),Error> {
@@ -58,18 +77,14 @@ impl<'m> MidiContainer<'m> {
                                 .map_err(|e|Error::new(ErrorKind::Other,format!("{:?}",e)))?);
         Ok(())
     }
-    pub fn init_play(&'m mut self) {
-        for i in 0..self.opt_smf.as_ref().unwrap().tracks.len() {
-            let ts = TrackState::new(i, self.opt_smf.as_ref().unwrap().tracks[i].iter());
-            self.track_parsers.push(ts);
+    pub fn iter(&'m mut self) -> MidiIterator<'m> {
+        let mut mi = MidiIterator::new();
+        if let Some(ref smf) = self.opt_smf.as_ref() {
+            for (i,trk) in smf.tracks.iter().enumerate() {
+                mi.add_track(i, trk.iter());
+            }
         }
+        mi
     }
 }
 
-impl<'m> Iterator for MidiContainer<'m> {
-    type Item = (usize, usize, midly::Event<'m>);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.track_parsers.sort();
-        None
-    }
-}
