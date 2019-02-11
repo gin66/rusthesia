@@ -390,15 +390,13 @@ fn main() -> Result<(), Box<std::error::Error>> {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut next_head_pos = 1;
-    let mut curr_pos = 0;
+    let curr_pos = 0;
     let mut paused = false;
     let mut opt_waterfall: Option<sdl2::render::Texture> = None;
     let mut opt_last_draw_instant: Option<Instant> = None;
     let mut finger_msg = format!("----");
     let mut scale_1024 = 1024;
     sequencer.play(0, scale_1024, None);
-    let mut ref_time = Instant::now();
     'running: loop {
         let pos_us = sequencer.pos_us();
         if opt_last_draw_instant
@@ -589,6 +587,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             if let Some(ref font) = opt_font.as_ref() {
                 let mut lines = vec![];
                 lines.push(format!("{} ms", pos_us/1_000));
+                lines.push(format!("scale = {:.2}",scale_1024 as f32/1024.0));
                 lines.push(format!("shift = {}", shift_key));
                 lines.push(finger_msg.clone());
 
@@ -636,14 +635,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     keycode: Some(Keycode::Plus),
                     ..
                 } => {
-                    scale_1024 = 2048.min(scale_1024 + 32);
+                    scale_1024 = 4096.min(scale_1024 + 32);
                     sequencer.set_scaling_1024(scale_1024);
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Minus),
                     ..
                 } => {
-                    scale_1024 = 512.max(scale_1024 - 32);
+                    scale_1024 = 128.max(scale_1024 - 32);
                     sequencer.set_scaling_1024(scale_1024);
                 }
                 Event::KeyDown {
