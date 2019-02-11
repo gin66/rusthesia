@@ -18,6 +18,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 
 mod midi_container;
+mod midi_sequencer;
 mod usage;
 
 #[derive(Copy, Clone)]
@@ -63,16 +64,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
         LevelFilter::Error
     });
 
-    let midi_fname = matches.value_of("MIDI").unwrap();
-    let mut f = File::open(midi_fname)?;
-    let mut midi = Vec::new();
-    f.read_to_end(&mut midi)?;
-
     let mut shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
 
-    let rd64 = matches.is_present("RD64");
-
     // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
+    let rd64 = matches.is_present("RD64");
     let (left_key, right_key) = if rd64 {
         // RD-64 is A1 to C7
         (21 + 12, 108 - 12)
@@ -81,7 +76,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
         (21, 108)
     };
 
+    // old code
+    let midi_fname = matches.value_of("MIDI").unwrap();
+    let mut f = File::open(midi_fname)?;
+    let mut midi = Vec::new();
+    f.read_to_end(&mut midi)?;
     let smf: midly::Smf<Vec<midly::Event>> = midly::Smf::read(&midi)?;
+
+    // new code using midi_container
+    let midi_fname = matches.value_of("MIDI").unwrap();
     let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
     if debug {
@@ -89,16 +92,18 @@ fn main() -> Result<(), Box<std::error::Error>> {
             //trace!("{:?}", evt);
         }
         for evt in container.iter().timed(&container.header().timing) {
-            trace!("{:?}", evt);
+            trace!("timed: {:?}", evt);
         }
     }
 
+    // old code
     let ppqn = match container.header().timing {
         midly::Timing::Metrical(x) => x.as_int() as u32,
         midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
         //  https://en.wikipedia.org/wiki/MIDI_timecode
     };
 
+    // new code to be refactored in separate function
     let list_tracks = matches.is_present("list");
     if list_tracks {
         for i in 0..container.nr_of_tracks() {
@@ -163,11 +168,88 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
         .collect::<Vec<_>>();
-    let _play_events = container
+    let play_events = container
         .iter()
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
+        .filter_map(|(time_us, trk, evt)| match evt {
+            midly::EventKind::Midi { channel, message } => match message {
+                midly::MidiMessage::NoteOn(key, pressure) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::NoteOn(channel.as_int(), key.as_int(), pressure.as_int()),
+                )),
+                midly::MidiMessage::NoteOff(key, pressure) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::NoteOff(channel.as_int(), key.as_int(), pressure.as_int()),
+                )),
+                midly::MidiMessage::Aftertouch(key, pressure) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::Aftertouch(channel.as_int(), key.as_int(), pressure.as_int()),
+                )),
+                midly::MidiMessage::Controller(control, value) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::Controller(channel.as_int(), control.as_int(), value.as_int()),
+                )),
+                midly::MidiMessage::ChannelAftertouch(pressure) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::ChannelAftertouch(channel.as_int(), pressure.as_int()),
+                )),
+                midly::MidiMessage::PitchBend(change) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::PitchBend(channel.as_int(), change.as_int()),
+                )),
+                midly::MidiMessage::ProgramChange(program) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::ProgramChange(channel.as_int(), program.as_int()),
+                )),
+            },
+            _ => None,
+        })
+        .inspect(|e| trace!("{:?}",e))
         .collect::<Vec<_>>();
+
+    println!("output");
+    let midi_out = MidiOutput::new("My Test Output")?;
+    // Get an output port (read from console if multiple are available)
+    let out_port = match midi_out.port_count() {
+        0 => return Err("no output port found".into()),
+        1 => {
+            println!(
+                "Choosing the only available output port: {}",
+                midi_out.port_name(0).unwrap()
+            );
+            0
+        }
+        _ => {
+            println!("\nAvailable output ports:");
+            for i in 0..midi_out.port_count() {
+                println!("{}: {}", i, midi_out.port_name(i).unwrap());
+            }
+            print!("Please select output port: ");
+            stdout().flush()?;
+            let mut input = String::new();
+            stdin().read_line(&mut input)?;
+            input.trim().parse()?
+        }
+    };
+    drop(midi_out);
+    let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
+
+    loop {
+        sleep(Duration::from_millis(1000));
+        if sequencer.is_finished() {
+            break;
+        }
+    }    
+
+    let midi_out = MidiOutput::new("My Test Output")?;
 
     // Reorder all midi message on timeline
     let mut tracks = vec![];
@@ -262,32 +344,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
     }
 
     //return Ok(());
-
-    println!("output");
-    let midi_out = MidiOutput::new("My Test Output")?;
-
-    // Get an output port (read from console if multiple are available)
-    let out_port = match midi_out.port_count() {
-        0 => return Err("no output port found".into()),
-        1 => {
-            println!(
-                "Choosing the only available output port: {}",
-                midi_out.port_name(0).unwrap()
-            );
-            0
-        }
-        _ => {
-            println!("\nAvailable output ports:");
-            for i in 0..midi_out.port_count() {
-                println!("{}: {}", i, midi_out.port_name(i).unwrap());
-            }
-            print!("Please select output port: ");
-            stdout().flush()?;
-            let mut input = String::new();
-            stdin().read_line(&mut input)?;
-            input.trim().parse()?
-        }
-    };
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
