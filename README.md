@@ -72,6 +72,11 @@ In order to play the lower and show only the upper, use the following command:
 > rusthesia Marche_aux_Flambeaux.mid -p 1 -s 2
 ```
 
+Only use the midi player function without graphic output:
+```
+> rusthesia Marche_aux_Flambeaux.mid -p 1
+```
+
 ## Todo
 
 Todo list is managed under [projects](https://github.com/gin66/rusthesia/projects)
