@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let list_tracks = matches.is_present("list");
     if list_tracks {
-        for i in 0..smf.tracks.len() {
+        for i in 0..container.nr_of_tracks() {
             println!("Track {}:", i);
             let mut used_channels = vec![false; 16];
             for evt in container.iter().filter(|e| e.1 == i) {

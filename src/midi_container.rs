@@ -189,6 +189,9 @@ impl<'m> MidiContainer<'m> {
     pub fn header(&'m self) -> &midly::Header {
         &self.smf.header
     }
+    pub fn nr_of_tracks(&'m self) -> usize {
+        self.smf.tracks.len()
+    }
 }
 
 #[cfg(test)]
@@ -200,6 +203,7 @@ mod tests {
         let midi_fname = "Marche_aux_Flambeaux.mid";
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        assert_eq!(container.nr_of_tracks(),3);
         assert_eq!(container.iter().count(),2423);
         //for evt in container.iter() {
         //    println!("{:?}", evt);
