@@ -1,4 +1,4 @@
-use clap::{crate_authors, crate_version, value_t, values_t};
+use clap::{crate_authors, crate_version};
 use clap::{App, Arg};
 use indoc::indoc;
 

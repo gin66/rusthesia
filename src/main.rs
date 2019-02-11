@@ -9,9 +9,7 @@ use simple_logging;
 use midir::MidiOutput;
 use midly;
 
-use clap::{crate_authors, crate_version, value_t, values_t};
-use clap::{App, Arg};
-use indoc::indoc;
+use clap::{value_t, values_t};
 
 use font_kit;
 use sdl2::event::Event;
@@ -87,7 +85,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
     if debug {
-        for evt in container.iter() {
+        for _evt in container.iter() {
             //trace!("{:?}", evt);
         }
         for evt in container.iter().timed(&container.header().timing) {
@@ -290,7 +288,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             font_kit::handle::Handle::Path { path, font_index } => {
                 ttf_context.load_font_at_index(path, font_index, 24)
             }
-            font_kit::handle::Handle::Memory { bytes, font_index } => {
+            font_kit::handle::Handle::Memory { bytes: _bytes, font_index: _font_index } => {
                 //let bytes = (*bytes).clone();
                 //let buf = sdl2::rwops::RWops::from_read(bytes).unwrap();
                 //ttf_context.load_font_at_index_from_rwops(buf,font_index,24)
@@ -548,7 +546,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 lines.push(finger_msg.clone());
 
                 let mut y = 10;
-                for (i, line) in lines.into_iter().enumerate() {
+                for line in lines.into_iter() {
                     if let Ok((width, height)) = font.size_of(&line) {
                         if let Ok(surface) =
                             font.render(&line).solid(Color::RGBA(255, 255, 255, 255))
@@ -617,13 +615,13 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     );
                 }
                 Event::FingerMotion {
-                    timestamp,
-                    touch_id,
-                    finger_id,
-                    x,
-                    y,
-                    dx,
-                    dy,
+                    timestamp: _timestamp,
+                    touch_id: _touch_id,
+                    finger_id: _finger_id,
+                    x: _x,
+                    y: _y,
+                    dx: _dx,
+                    dy: _dy,
                     pressure: _pressure,
                 } => {
                     //finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2} dx={:.2} dy={:.2}",
