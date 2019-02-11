@@ -1,6 +1,4 @@
 use std::cmp::Ordering;
-use std::fs::File;
-use std::io::Read;
 use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 
@@ -76,7 +74,7 @@ impl<'m> MidiIterator<'m> {
     }
 }
 impl<'m> Iterator for MidiIterator<'m> {
-    type Item = (u32, usize, &'m midly::EventKind<'m>);
+    type Item = (u64, usize, &'m midly::EventKind<'m>);
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.track_parsers.len() == 0 {
@@ -93,8 +91,73 @@ impl<'m> Iterator for MidiIterator<'m> {
                 self.track_parsers.push(p);
             }
             if let Some(evt) = opt_evt {
-                return Some( (time,trk_number,&evt.kind) );
+                return Some( (time as u64,trk_number,&evt.kind) );
             }
+        }
+    }
+}
+
+pub struct MidiTimedIterator<'m> {
+    opt_midi_iter: Option<MidiIterator<'m>>,
+    timing: &'m midly::Timing,
+    timebase: Option<u64>,
+    current_time_us: u64,
+    last_tick: u32,
+}
+impl<'m> MidiTimedIterator<'m> {
+    fn update_timebase(&mut self, tempo: u32) {
+        let ppqn = match self.timing {
+            // http://www.onicos.com/staff/iz/formats/smf006.html
+            // http://midiwonder.com/midifile.html
+            //
+            // tempo = 24ths of a microsecond per MIDI clock
+            midly::Timing::Metrical(x) => x.as_int() as u32,
+            midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
+        };
+        let bpm = 60_000_000/tempo as u64;
+
+        self.timebase = Some(1_000_000/ppqn as u64/bpm);
+    }
+}
+impl<'m> Iterator for MidiTimedIterator<'m> {
+    type Item = (u64, usize, &'m midly::EventKind<'m>);
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.opt_midi_iter.is_none() {
+                return None;
+            }
+            let opt_tuple = self.opt_midi_iter.as_mut().unwrap().next();
+            if let Some((time,trk,evt_kind)) = opt_tuple {
+                // Advance time base
+                let dt = time - self.last_tick as u64;
+                if dt > 0 {
+                    self.last_tick = time as u32;
+                    self.current_time_us += dt as u64 * self.timebase.unwrap();
+                }
+                match evt_kind {
+                    &midly::EventKind::Meta(midly::MetaMessage::Tempo(tmp)) => {
+                        self.update_timebase(tmp.as_int());
+                    },
+                    _ => {
+                        return Some((self.current_time_us,trk,evt_kind));
+                    }
+                }
+            }
+            else {
+                self.opt_midi_iter = None;
+            }
+        }
+    }
+}
+
+impl<'m> MidiIterator<'m> {
+    pub fn timed(self, timing: &'m midly::Timing) -> MidiTimedIterator<'m> {
+        MidiTimedIterator {
+            opt_midi_iter: Some(self),
+            timing,
+            timebase: None,
+            current_time_us: 0,
+            last_tick: 0,
         }
     }
 }
@@ -185,7 +248,30 @@ mod tests {
             assert!(last_time <= time);
             last_time = time;
         }
+        
         assert_eq!(last_time,174720);
     }
+
+    #[test]
+    fn test_11() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        assert_eq!(container.iter().timed(&container.header().timing).count(),2421); // 2 Tempo events should be filtered
+    }
+    #[test]
+    fn test_16() {
+        let midi_fname = "Marche_aux_Flambeaux.mid";
+        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
+        let mut last_time_us = 0;
+        for (time_us,_,_) in container.iter().timed(&container.header().timing) {
+            assert!(last_time_us <= time_us);
+            last_time_us = time_us;
+        }
+        
+        assert_eq!(last_time_us,4_018_560);
+    }
+
 }
 

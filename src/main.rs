@@ -146,6 +146,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
     if debug {
         for evt in container.iter() {
+            //trace!("{:?}", evt);
+        }
+        for evt in container.iter().timed(&container.header().timing) {
             trace!("{:?}", evt);
         }
     }
