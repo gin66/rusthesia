@@ -566,7 +566,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 (pos_us as u64/1_000 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
             let (y_src, y_dst, y_height) = if y_shift > wf_height {
                 let dy = y_shift - wf_height;
-                (0, dy, wf_win_height - dy)
+                if wf_win_height >= dy {
+                    (0, dy, wf_win_height - dy)
+                }
+                else {
+                    (0, dy, 1)
+                }
             } else {
                 (wf_height - y_shift.min(wf_height), 0, wf_win_height)
             };
