@@ -39,16 +39,21 @@ impl<'m> std::cmp::Ord for TrackState<'m> {
             (false,true) => Ordering::Less,
             (true,false) => Ordering::Greater,
             (true,true) => {
-                match self.evt.as_ref().unwrap().kind {
-                    midly::EventKind::Meta(_) => Ordering::Less,
-                    _ => {
-                        match other.evt.as_ref().unwrap().kind {
-                            midly::EventKind::Meta(_) => Ordering::Greater,
+                match self.sort_key().cmp(&other.sort_key()) {
+                    Ordering::Equal => {
+                        match self.evt.as_ref().unwrap().kind {
+                            midly::EventKind::Meta(_) => Ordering::Less,
                             _ => {
-                                self.sort_key().cmp(&other.sort_key())
+                                match other.evt.as_ref().unwrap().kind {
+                                    midly::EventKind::Meta(_) => Ordering::Greater,
+                                    _ => {
+                                        Ordering::Equal
+                                    } 
+                                }
                             } 
                         }
-                    } 
+                    },
+                    o => o
                 }
             }
         }
@@ -129,6 +134,7 @@ impl<'m> Iterator for MidiTimedIterator<'m> {
             let opt_tuple = self.opt_midi_iter.as_mut().unwrap().next();
             if let Some((time,trk,evt_kind)) = opt_tuple {
                 // Advance time base
+                println!("{} {}",time,self.last_tick);
                 let dt = time - self.last_tick as u64;
                 if dt > 0 {
                     self.last_tick = time as u32;
