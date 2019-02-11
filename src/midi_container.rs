@@ -113,7 +113,7 @@ impl<'m> MidiTimedIterator<'m> {
         };
         let bpm = 60_000_000 / tempo as u64;
 
-        self.timebase = Some(1_000_000 / ppqn as u64 / bpm);
+        self.timebase = Some(60_000_000 / ppqn as u64 / bpm);
     }
 }
 impl<'m> Iterator for MidiTimedIterator<'m> {
@@ -125,8 +125,6 @@ impl<'m> Iterator for MidiTimedIterator<'m> {
             }
             let opt_tuple = self.opt_midi_iter.as_mut().unwrap().next();
             if let Some((time, trk, evt_kind)) = opt_tuple {
-                // Advance time base
-                println!("{} {}", time, self.last_tick);
                 let dt = time - self.last_tick as u64;
                 if dt > 0 {
                     self.last_tick = time as u32;
@@ -289,7 +287,7 @@ mod tests {
             last_time_us = time_us;
         }
 
-        assert_eq!(last_time_us, 4_018_560);
+        assert_eq!(last_time_us, 248_102_400);
     }
 
 }
