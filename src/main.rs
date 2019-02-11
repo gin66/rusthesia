@@ -396,7 +396,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut opt_waterfall: Option<sdl2::render::Texture> = None;
     let mut opt_last_draw_instant: Option<Instant> = None;
     let mut finger_msg = format!("----");
-    sequencer.play(0, 1024, None);
+    let mut scale_1024 = 1024;
+    sequencer.play(0, scale_1024, None);
     let mut ref_time = Instant::now();
     'running: loop {
         let pos_us = sequencer.pos_us();
@@ -628,7 +629,33 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.stop();
                     }
                     else {
-                        sequencer.play(pos_us, 1024, None);
+                        sequencer.play(pos_us, scale_1024, None);
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Plus),
+                    ..
+                } => {
+                    scale_1024 = 2048.min(scale_1024 + 32);
+                    sequencer.set_scaling_1024(scale_1024);
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Minus),
+                    ..
+                } => {
+                    scale_1024 = 512.max(scale_1024 - 32);
+                    sequencer.set_scaling_1024(scale_1024);
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => {
+                    let pos_us = pos_us + 5_000_000;
+                    if paused {
+                        sequencer.set_pos_us(pos_us);
+                    }
+                    else {
+                        sequencer.play(pos_us, scale_1024, None);
                     }
                 }
                 Event::KeyDown {
@@ -645,7 +672,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.set_pos_us(pos_us);
                     }
                     else {
-                        sequencer.play(pos_us, 1024, None);
+                        sequencer.play(pos_us, scale_1024, None);
                     }
                 }
                 Event::KeyDown {

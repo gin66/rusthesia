@@ -13,7 +13,10 @@ pub fn usage() -> clap::ArgMatches<'static> {
                 Valid key commands, while playing:
                     <Cursor-Left>   Transpose half tone lower
                     <Cursor-Right>  Transpose half tone higher
-                    <Cursor-Up>     Go back some time
+                    <Cursor-Up>     Go forward some time
+                    <Cursor-Down>   Go back some time
+                    <+>             Faster
+                    <->             Slower
                     <Space>         Pause/continue playing
 
                 For playing midi without output, leave out '-s' option
