@@ -244,6 +244,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
 
     if show_tracks.len() == 0 {
+        sequencer.play(0, 1024, None);
         loop {
             sleep(Duration::from_millis(1000));
             if sequencer.is_finished() {
@@ -252,8 +253,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
         return Ok(());
     }
-
-    let midi_out = MidiOutput::new("My Test Output")?;
 
     // Reorder all midi message on timeline
     let mut tracks = vec![];
@@ -376,9 +375,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
     };
     println!("Have font={:?}", opt_font.is_some());
 
-    trace!("\nOpening connection");
-    let mut conn_out = midi_out.connect(out_port, "midir-test")?;
-    trace!("Connection open");
     let window = video_subsystem
         .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
         .position_centered()
@@ -394,42 +390,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut realtime = 0;
     let mut next_head_pos = 1;
     let mut curr_pos = 0;
     let mut paused = false;
     let mut opt_waterfall: Option<sdl2::render::Texture> = None;
     let mut opt_last_draw_instant: Option<Instant> = None;
     let mut finger_msg = format!("----");
+    sequencer.play(0, 1024, None);
+    let mut ref_time = Instant::now();
     'running: loop {
-        if next_head_pos < timeline.len() {
-            if timeline[next_head_pos].0 <= realtime {
-                curr_pos = next_head_pos;
-                for m in timeline[curr_pos].1.iter() {
-                    match m {
-                        Some((c, midly::MidiMessage::NoteOn(p1, p2))) => conn_out
-                            .send(&[
-                                0x90 + c.as_int(),
-                                (p1.as_int() as i8 - shift_key) as u8,
-                                p2.as_int(),
-                            ])
-                            .unwrap(),
-                        Some((c, midly::MidiMessage::NoteOff(p1, p2))) => conn_out
-                            .send(&[
-                                0x80 + c.as_int(),
-                                (p1.as_int() as i8 - shift_key) as u8,
-                                p2.as_int(),
-                            ])
-                            .unwrap(),
-                        m => println!("=> {:#?}", m),
-                    }
-                }
-                next_head_pos += 1;
-            }
-        } else {
-            break;
-        }
-
+        let pos_us = sequencer.pos_us();
         if opt_last_draw_instant
             .map(|x| x.elapsed().subsec_millis() > 20)
             .unwrap_or(true)
@@ -589,11 +559,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     Some(texture_creator.create_texture_from_surface(wf_canvas.into_surface())?);
             }
 
+
             let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
 
             let wf_height = opt_waterfall.as_ref().unwrap().query().height;
             let y_shift =
-                (realtime as u64 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
+                (pos_us as u64/1_000 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
             let (y_src, y_dst, y_height) = if y_shift > wf_height {
                 let dy = y_shift - wf_height;
                 (0, dy, wf_win_height - dy)
@@ -616,7 +587,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
             if let Some(ref font) = opt_font.as_ref() {
                 let mut lines = vec![];
-                lines.push(format!("{} ms", realtime));
+                lines.push(format!("{} ms", pos_us/1_000));
                 lines.push(format!("shift = {}", shift_key));
                 lines.push(finger_msg.clone());
 
@@ -653,14 +624,29 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     ..
                 } => {
                     paused = !paused;
+                    if paused {
+                        sequencer.stop();
+                    }
+                    else {
+                        sequencer.play(pos_us, 1024, None);
+                    }
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
                 } => {
-                    curr_pos = curr_pos.max(10) - 10;
-                    next_head_pos = curr_pos + 1;
-                    realtime = timeline[curr_pos].0;
+                    let pos_us = if pos_us > 5_000_000 {
+                        pos_us - 5_000_000
+                    }
+                    else {
+                        0
+                    };
+                    if paused {
+                        sequencer.set_pos_us(pos_us);
+                    }
+                    else {
+                        sequencer.play(pos_us, 1024, None);
+                    }
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
@@ -707,22 +693,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         // The rest of the game loop goes here...
-
-        if next_head_pos < timeline.len() {
-            let dt = timeline[next_head_pos].0 - realtime;
-            if dt > 0 {
-                let dt = dt.min(5);
-                sleep(Duration::from_millis(dt as u64));
-                if !paused {
-                    realtime += dt;
-                }
-            }
-        }
+        sleep(Duration::from_millis(20));
     }
     sleep(Duration::from_millis(150));
-    trace!("\nClosing connection");
-    // This is optional, the connection would automatically be closed as soon as it goes out of scope
-    conn_out.close();
-    trace!("Connection closed");
     Ok(())
 }
