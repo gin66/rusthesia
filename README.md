@@ -88,6 +88,11 @@ Have not been able to use Logic Pro/X as a synthesizer with channels assigned to
 
 Works, but need to create a concert with keyboard per channel, which is not very convenient.
 
+#### Connected piano (Roland RD-64) with synthesizer
+
+As rusthesia offered to use my Roland RD-64 as output, I have given it a try.
+Very positively surprised, that it works pretty well. Even can play along by hand to the song.
+
 ### Linux
 
 As per info from Samuel Da Moto, the code works on linux:
@@ -112,6 +117,15 @@ Unfortunatly it does not work for these issues:
 * No output if using timidity -A
 
 Need further debugging.
+
+## Data to Marche_aux_Flambeaux.mid
+
+* 115 bars
+* 4/4 bar
+* 110 beats per minute (as per Logic Pro/X)
+* duration 4 minutes 8 seconds
+* First note starts at bar 2.0
+* Last note ends at bar 114.3
 
 ## Solutions for known issues
 

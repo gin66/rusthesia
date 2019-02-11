@@ -8,14 +8,16 @@ pub fn usage() -> clap::ArgMatches<'static> {
         .author(crate_authors!("\n"))
         .about(indoc!(
             "
-                                    Reads midi files and creates piano notes waterfall.
+                Reads midi files and creates piano notes waterfall.
 
-                                    Valid key commands, while playing:
-                                        <Cursor-Left>   Transpose half tone lower
-                                        <Cursor-Right>  Transpose half tone higher
-                                        <Cursor-Up>     Go back some time
-                                        <Space>         Pause/continue playing
-                                        "
+                Valid key commands, while playing:
+                    <Cursor-Left>   Transpose half tone lower
+                    <Cursor-Right>  Transpose half tone higher
+                    <Cursor-Up>     Go back some time
+                    <Space>         Pause/continue playing
+
+                For playing midi without output, leave out '-s' option
+            "
         ))
         .arg(
             Arg::with_name("transpose")
@@ -36,7 +38,6 @@ pub fn usage() -> clap::ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("show")
-                .required_unless("list")
                 .short("s")
                 .long("show-tracks")
                 .takes_value(true)

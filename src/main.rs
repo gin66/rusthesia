@@ -159,7 +159,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return Ok(());
     }
 
-    let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|e| e.exit());;
+    let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);;
     let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
 
     // Get all the events to show/play
@@ -240,14 +240,18 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     };
     drop(midi_out);
+
     let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
 
-    loop {
-        sleep(Duration::from_millis(1000));
-        if sequencer.is_finished() {
-            break;
+    if show_tracks.len() == 0 {
+        loop {
+            sleep(Duration::from_millis(1000));
+            if sequencer.is_finished() {
+                break;
+            }
         }
-    }    
+        return Ok(());
+    }
 
     let midi_out = MidiOutput::new("My Test Output")?;
 

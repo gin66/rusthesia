@@ -1,6 +1,4 @@
 use log::*;
-use std::fs::File;
-use std::io::Read;
 use std::sync::mpsc;
 use std::thread;
 use std::thread::sleep;
