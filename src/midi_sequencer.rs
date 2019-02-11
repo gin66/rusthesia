@@ -129,7 +129,13 @@ impl MidiSequencerThread {
                             scaling_1024 = new_scaling as u64;
                             SequencerState::Playing
                         },
-                        Ok(MidiSequencerCommand::Stop) => SequencerState::Stopped,
+                        Ok(MidiSequencerCommand::Stop) => {
+                            for channel in 0..15 {
+                                let msg = [0x0b+channel, 123, 0]; // All Notes Off
+                                conn_out.send(&msg).unwrap();
+                            }
+                            SequencerState::Stopped
+                        },
                     }
                 },
                 SequencerState::StartPlaying(_, _, _) => panic!("StartPlaying should not be reachable here")
