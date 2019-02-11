@@ -19,19 +19,46 @@ pub enum MidiEvent {
 impl MidiEvent {
     pub fn as_raw(&self, _trk_idx: usize) -> Vec<u8> {
         match self {
-            MidiEvent::NoteOn(channel, key,pressure) => 
+            MidiEvent::NoteOn(channel, key, pressure) => 
                                 vec![
                                     0x90 + channel,
                                     *key,
                                     *pressure,
                                 ],
-            MidiEvent::NoteOff(channel, key,pressure) => 
+            MidiEvent::NoteOff(channel, key, pressure) => 
                                 vec![
                                     0x80 + channel,
                                     *key,
                                     *pressure,
                                 ],
-            _ => vec![]
+            MidiEvent::Controller(channel, control, value) => 
+                                vec![
+                                    0xb0 + channel,
+                                    *control,
+                                    *value,
+                                ],
+            MidiEvent::Aftertouch(channel, key, pressure) => 
+                                vec![
+                                    0xa0 + channel,
+                                    *key,
+                                    *pressure,
+                                ],
+            MidiEvent::ChannelAftertouch(channel, pressure) => 
+                                vec![
+                                    0xd0 + channel,
+                                    *pressure,
+                                ],
+            MidiEvent::PitchBend(channel, change) => 
+                                vec![
+                                    0xe0 + channel,
+                                    (*change & 0x7f) as u8,
+                                    (*change >> 7) as u8,
+                                ],
+            MidiEvent::ProgramChange(channel, program) => 
+                                vec![
+                                    0xc0 + channel,
+                                    *program,
+                                ],
         }
     }
 }
