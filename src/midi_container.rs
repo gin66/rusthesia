@@ -6,7 +6,7 @@ pub struct TrackState<'m> {
     trk_number: usize,
     trk_iter: std::slice::Iter<'m, midly::Event<'m>>,
     time: u32,
-    evt: Option<&'m midly::Event<'m>>
+    evt: Option<&'m midly::Event<'m>>,
 }
 impl<'m> TrackState<'m> {
     fn new(trk_number: usize, trk_iter: std::slice::Iter<'m, midly::Event<'m>>) -> TrackState<'m> {
@@ -34,28 +34,20 @@ impl<'m> std::cmp::PartialOrd for TrackState<'m> {
 }
 impl<'m> std::cmp::Ord for TrackState<'m> {
     fn cmp(&self, other: &Self) -> Ordering {
-        match (self.evt.is_some(),other.evt.is_some()) {
-            (false,false) => Ordering::Equal,
-            (false,true) => Ordering::Less,
-            (true,false) => Ordering::Greater,
-            (true,true) => {
-                match self.sort_key().cmp(&other.sort_key()) {
-                    Ordering::Equal => {
-                        match self.evt.as_ref().unwrap().kind {
-                            midly::EventKind::Meta(_) => Ordering::Less,
-                            _ => {
-                                match other.evt.as_ref().unwrap().kind {
-                                    midly::EventKind::Meta(_) => Ordering::Greater,
-                                    _ => {
-                                        Ordering::Equal
-                                    } 
-                                }
-                            } 
-                        }
+        match (self.evt.is_some(), other.evt.is_some()) {
+            (false, false) => Ordering::Equal,
+            (false, true) => Ordering::Less,
+            (true, false) => Ordering::Greater,
+            (true, true) => match self.sort_key().cmp(&other.sort_key()) {
+                Ordering::Equal => match self.evt.as_ref().unwrap().kind {
+                    midly::EventKind::Meta(_) => Ordering::Less,
+                    _ => match other.evt.as_ref().unwrap().kind {
+                        midly::EventKind::Meta(_) => Ordering::Greater,
+                        _ => Ordering::Equal,
                     },
-                    o => o
-                }
-            }
+                },
+                o => o,
+            },
         }
     }
 }
@@ -96,7 +88,7 @@ impl<'m> Iterator for MidiIterator<'m> {
                 self.track_parsers.push(p);
             }
             if let Some(evt) = opt_evt {
-                return Some( (time as u64,trk_number,&evt.kind) );
+                return Some((time as u64, trk_number, &evt.kind));
             }
         }
     }
@@ -119,9 +111,9 @@ impl<'m> MidiTimedIterator<'m> {
             midly::Timing::Metrical(x) => x.as_int() as u32,
             midly::Timing::Timecode(_x, _y) => panic!("Timecode not implemented"),
         };
-        let bpm = 60_000_000/tempo as u64;
+        let bpm = 60_000_000 / tempo as u64;
 
-        self.timebase = Some(1_000_000/ppqn as u64/bpm);
+        self.timebase = Some(1_000_000 / ppqn as u64 / bpm);
     }
 }
 impl<'m> Iterator for MidiTimedIterator<'m> {
@@ -132,9 +124,9 @@ impl<'m> Iterator for MidiTimedIterator<'m> {
                 return None;
             }
             let opt_tuple = self.opt_midi_iter.as_mut().unwrap().next();
-            if let Some((time,trk,evt_kind)) = opt_tuple {
+            if let Some((time, trk, evt_kind)) = opt_tuple {
                 // Advance time base
-                println!("{} {}",time,self.last_tick);
+                println!("{} {}", time, self.last_tick);
                 let dt = time - self.last_tick as u64;
                 if dt > 0 {
                     self.last_tick = time as u32;
@@ -143,13 +135,12 @@ impl<'m> Iterator for MidiTimedIterator<'m> {
                 match evt_kind {
                     &midly::EventKind::Meta(midly::MetaMessage::Tempo(tmp)) => {
                         self.update_timebase(tmp.as_int());
-                    },
+                    }
                     _ => {
-                        return Some((self.current_time_us,trk,evt_kind));
+                        return Some((self.current_time_us, trk, evt_kind));
                     }
                 }
-            }
-            else {
+            } else {
                 self.opt_midi_iter = None;
             }
         }
@@ -203,8 +194,8 @@ mod tests {
         let midi_fname = "Marche_aux_Flambeaux.mid";
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
-        assert_eq!(container.nr_of_tracks(),3);
-        assert_eq!(container.iter().count(),2423);
+        assert_eq!(container.nr_of_tracks(), 3);
+        assert_eq!(container.iter().count(), 2423);
         //for evt in container.iter() {
         //    println!("{:?}", evt);
         //}
@@ -215,8 +206,13 @@ mod tests {
         let midi_fname = "Marche_aux_Flambeaux.mid";
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
-        assert_eq!(container.iter().filter(
-                |(_time,track_id,_evt)| *track_id == 0).count(),6);
+        assert_eq!(
+            container
+                .iter()
+                .filter(|(_time, track_id, _evt)| *track_id == 0)
+                .count(),
+            6
+        );
     }
 
     #[test]
@@ -224,8 +220,13 @@ mod tests {
         let midi_fname = "Marche_aux_Flambeaux.mid";
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
-        assert_eq!(container.iter().filter(
-                |(_time,track_id,_evt)| *track_id == 1).count(),1679);
+        assert_eq!(
+            container
+                .iter()
+                .filter(|(_time, track_id, _evt)| *track_id == 1)
+                .count(),
+            1679
+        );
     }
 
     #[test]
@@ -233,8 +234,13 @@ mod tests {
         let midi_fname = "Marche_aux_Flambeaux.mid";
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
-        assert_eq!(container.iter().filter(
-                |(_time,track_id,_evt)| *track_id == 2).count(),2423-6-1679);
+        assert_eq!(
+            container
+                .iter()
+                .filter(|(_time, track_id, _evt)| *track_id == 2)
+                .count(),
+            2423 - 6 - 1679
+        );
     }
 
     #[test]
@@ -243,8 +249,8 @@ mod tests {
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         match container.header().timing {
-            midly::Timing::Metrical(t) => assert_eq!(t.as_int(),384),
-            _ => panic!("wrong type")
+            midly::Timing::Metrical(t) => assert_eq!(t.as_int(), 384),
+            _ => panic!("wrong type"),
         }
     }
 
@@ -254,12 +260,12 @@ mod tests {
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         let mut last_time = 0;
-        for (time,_,_) in container.iter() {
+        for (time, _, _) in container.iter() {
             assert!(last_time <= time);
             last_time = time;
         }
-        
-        assert_eq!(last_time,174720);
+
+        assert_eq!(last_time, 174720);
     }
 
     #[test]
@@ -267,7 +273,10 @@ mod tests {
         let midi_fname = "Marche_aux_Flambeaux.mid";
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
-        assert_eq!(container.iter().timed(&container.header().timing).count(),2421); // 2 Tempo events should be filtered
+        assert_eq!(
+            container.iter().timed(&container.header().timing).count(),
+            2421
+        ); // 2 Tempo events should be filtered
     }
     #[test]
     fn test_16() {
@@ -275,13 +284,12 @@ mod tests {
         let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         let mut last_time_us = 0;
-        for (time_us,_,_) in container.iter().timed(&container.header().timing) {
+        for (time_us, _, _) in container.iter().timed(&container.header().timing) {
             assert!(last_time_us <= time_us);
             last_time_us = time_us;
         }
-        
-        assert_eq!(last_time_us,4_018_560);
+
+        assert_eq!(last_time_us, 4_018_560);
     }
 
 }
-

@@ -157,6 +157,18 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|e| e.exit());;
     let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
 
+    // Get all the events to show/play
+    let _show_events = container
+        .iter()
+        .timed(&container.header().timing)
+        .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
+        .collect::<Vec<_>>();
+    let _play_events = container
+        .iter()
+        .timed(&container.header().timing)
+        .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
+        .collect::<Vec<_>>();
+
     // Reorder all midi message on timeline
     let mut tracks = vec![];
     for i in 0..smf.tracks.len() {
@@ -288,7 +300,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
             font_kit::handle::Handle::Path { path, font_index } => {
                 ttf_context.load_font_at_index(path, font_index, 24)
             }
-            font_kit::handle::Handle::Memory { bytes: _bytes, font_index: _font_index } => {
+            font_kit::handle::Handle::Memory {
+                bytes: _bytes,
+                font_index: _font_index,
+            } => {
                 //let bytes = (*bytes).clone();
                 //let buf = sdl2::rwops::RWops::from_read(bytes).unwrap();
                 //ttf_context.load_font_at_index_from_rwops(buf,font_index,24)
