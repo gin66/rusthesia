@@ -133,7 +133,8 @@ impl MidiSequencerThread {
                             SequencerState::Playing
                         },
                         Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
-                            panic!("Not allowed in this state");
+                            self.time_control.set_pos_us(pos_us);
+                            SequencerState::Stopped
                         },
                         Ok(MidiSequencerCommand::Stop) => {
                             for channel in 0..15 {
@@ -206,6 +207,9 @@ impl MidiSequencer {
         let time_listener = controller.new_listener();
         thread::spawn(move || MidiSequencerThread::new(rx, out_port, events, controller).run());
         MidiSequencer { control: tx, time_listener }
+    }
+    pub fn get_new_listener(&self) -> TimeListener {
+        self.time_listener.clone()
     }
     pub fn set_pos_us(&self, pos_us: i64) {
         self.control.send(MidiSequencerCommand::SetPosition(pos_us)).ok();
