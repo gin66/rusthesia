@@ -245,7 +245,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
 
     if show_tracks.len() == 0 {
-        sequencer.play(0, 1024, None);
+        sequencer.play(0, 1000, None);
         loop {
             sleep(Duration::from_millis(1000));
             if sequencer.is_finished() {
@@ -396,8 +396,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut opt_waterfall: Option<sdl2::render::Texture> = None;
     let mut opt_last_draw_instant: Option<Instant> = None;
     let mut finger_msg = format!("----");
-    let mut scale_1024 = 1024;
-    sequencer.play(0, scale_1024, None);
+    let mut scale_1000 = 1000;
+    sequencer.play(0, scale_1000, None);
     'running: loop {
         let pos_us: i64 = sequencer.pos_us();
         if opt_last_draw_instant
@@ -593,7 +593,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             if let Some(ref font) = opt_font.as_ref() {
                 let mut lines = vec![];
                 lines.push(format!("{} ms", pos_us/1_000));
-                lines.push(format!("scale = {:.2}",scale_1024 as f32/1024.0));
+                lines.push(format!("scale = {:.2}",scale_1000 as f32/1000.0));
                 lines.push(format!("shift = {}", shift_key));
                 lines.push(finger_msg.clone());
 
@@ -634,22 +634,22 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.stop();
                     }
                     else {
-                        sequencer.play(pos_us, scale_1024, None);
+                        sequencer.play(pos_us, scale_1000, None);
                     }
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Plus),
                     ..
                 } => {
-                    scale_1024 = 4096.min(scale_1024 + 32);
-                    sequencer.set_scaling_1024(scale_1024);
+                    scale_1000 = 4000.min(scale_1000 + 50);
+                    sequencer.set_scaling_1000(scale_1000);
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Minus),
                     ..
                 } => {
-                    scale_1024 = 128.max(scale_1024 - 32);
-                    sequencer.set_scaling_1024(scale_1024);
+                    scale_1000 = 250.max(scale_1000 - 50);
+                    sequencer.set_scaling_1000(scale_1000);
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
@@ -660,7 +660,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.set_pos_us(pos_us);
                     }
                     else {
-                        sequencer.play(pos_us, scale_1024, None);
+                        sequencer.play(pos_us, scale_1000, None);
                     }
                 }
                 Event::KeyDown {
@@ -677,7 +677,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.set_pos_us(pos_us);
                     }
                     else {
-                        sequencer.play(pos_us, scale_1024, None);
+                        sequencer.play(pos_us, scale_1000, None);
                     }
                 }
                 Event::KeyDown {

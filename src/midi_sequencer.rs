@@ -219,7 +219,7 @@ impl MidiSequencer {
     pub fn play(&self, pos_us: i64, new_scale: u16, opt_events: Option<Vec<RawMidiTuple>>) {
         self.control.send(MidiSequencerCommand::Play(pos_us,new_scale,opt_events)).ok();
     }
-    pub fn set_scaling_1024(&self, new_scale: u16) {
+    pub fn set_scaling_1000(&self, new_scale: u16) {
         self.control.send(MidiSequencerCommand::Scale(new_scale)).ok();
     }
     pub fn stop(&self) {
