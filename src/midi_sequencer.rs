@@ -2,11 +2,11 @@ use log::*;
 use std::sync::mpsc;
 use std::thread;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use midly;
 
+use crate::time_controller::{TimeController, TimeListener, TimeListenerTrait};
 #[derive(Debug)]
 pub enum MidiEvent {
     NoteOn(u8, u8, u8),
@@ -68,7 +68,8 @@ pub type RawMidiTuple = (u64, usize, MidiEvent);
 
 enum MidiSequencerCommand {
     Ping,
-    Play(u64, u16, Option<Vec<RawMidiTuple>>),
+    SetPosition(i64),
+    Play(i64, u16, Option<Vec<RawMidiTuple>>),
     Scale(u16),
     Stop,
 }
@@ -76,29 +77,23 @@ enum MidiSequencerCommand {
 enum SequencerState {
     Stopped,
     Playing,
-    StartPlaying(u64, u16, Option<Vec<RawMidiTuple>>),
-}
-
-struct RefPosition {
-    pos_us: u64,
-    at_instant: Option<Instant>,
-    scaling_1024: u64
+    StartPlaying(i64, u16, Option<Vec<RawMidiTuple>>),
 }
 
 struct MidiSequencerThread {
     out_port: usize,
     control: mpsc::Receiver<MidiSequencerCommand>,
     events: Vec<RawMidiTuple>,
-    ref_pos: Arc<Mutex<RefPosition>>,
+    time_control: TimeController
 }
 impl MidiSequencerThread {
     fn new(
         control: mpsc::Receiver<MidiSequencerCommand>,
         out_port: usize,
         events: Vec<RawMidiTuple>,
-        ref_pos: Arc<Mutex<RefPosition>>,
+        time_control: TimeController,
     ) -> MidiSequencerThread {
-        MidiSequencerThread { out_port, control, events, ref_pos }
+        MidiSequencerThread { out_port, control, events, time_control }
     }
     fn run(&mut self) {
         trace!("Opening connection");
@@ -116,7 +111,11 @@ impl MidiSequencerThread {
                         Ok(MidiSequencerCommand::Play(pos_us, new_scaling, opt_events)) => 
                             SequencerState::StartPlaying(pos_us, new_scaling, opt_events),
                         Ok(MidiSequencerCommand::Scale(new_scaling)) => {
-                            self.ref_pos.lock().unwrap().scaling_1024 = new_scaling as u64;
+                            self.time_control.set_scaling_1000(new_scaling);
+                            SequencerState::Stopped
+                        },
+                        Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
+                            self.time_control.set_pos_us(pos_us);
                             SequencerState::Stopped
                         },
                         Ok(MidiSequencerCommand::Stop) => SequencerState::Stopped,
@@ -130,8 +129,11 @@ impl MidiSequencerThread {
                         Ok(MidiSequencerCommand::Play(pos_us, new_scaling, opt_events)) => 
                             SequencerState::StartPlaying(pos_us, new_scaling, opt_events),
                         Ok(MidiSequencerCommand::Scale(new_scaling)) => {
-                            self.ref_pos.lock().unwrap().scaling_1024 = new_scaling as u64;
+                            self.time_control.set_scaling_1000(new_scaling);
                             SequencerState::Playing
+                        },
+                        Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
+                            panic!("Not allowed in this state");
                         },
                         Ok(MidiSequencerCommand::Stop) => {
                             for channel in 0..15 {
@@ -149,16 +151,13 @@ impl MidiSequencerThread {
                 SequencerState::Stopped => SequencerState::Stopped,
                 SequencerState::StartPlaying(pos_us, new_scaling, opt_events) => {
                     idx = 0;
-                    {
-                        let mut ref_pos = self.ref_pos.lock().unwrap();
-                        ref_pos.pos_us = pos_us;
-                        ref_pos.at_instant = Some(Instant::now());
-                        ref_pos.scaling_1024 = new_scaling as u64;
-                    }
+                    self.time_control.set_pos_us(pos_us as i64);
+                    self.time_control.set_scaling_1000(new_scaling);
+                    self.time_control.start();
                     if let Some(events) = opt_events {
                         self.events = events;
                     }
-                    while pos_us >= self.events[idx].0 {
+                    while pos_us >= self.events[idx].0 as i64 {
                         idx += 1;
                         if idx >= self.events.len() {
                             break 'main;
@@ -167,8 +166,8 @@ impl MidiSequencerThread {
                     SequencerState::Playing
                 },
                 SequencerState::Playing => {
-                    let pos_us = self.ref_pos.lock().unwrap().pos_us;
-                    while pos_us >= self.events[idx].0 {
+                    let pos_us = self.time_control.get_pos_us();
+                    while pos_us >= self.events[idx].0 as i64 {
                         let msg = self.events[idx].2.as_raw(self.events[idx].1);
                         if msg.len() > 0 {
                             conn_out.send(&msg).unwrap();
@@ -179,17 +178,12 @@ impl MidiSequencerThread {
                         }
                     }
 
-                    let scaling_1024 = self.ref_pos.lock().unwrap().scaling_1024;
-                    let dt_us = self.events[idx].0 - pos_us;
-                    let dt_ms = (dt_us * scaling_1024/1_024_000).min(100).max(1);
-                    trace!("sleep {} ms",dt_ms);
-                    sleep(Duration::from_millis(dt_ms));
-
-                    {
-                        let mut ref_pos = self.ref_pos.lock().unwrap();
-                        let elapsed_us = ref_pos.at_instant.unwrap().elapsed().subsec_micros();
-                        ref_pos.at_instant = Some(Instant::now());
-                        ref_pos.pos_us += elapsed_us as u64 * 1024 / ref_pos.scaling_1024;
+                    let next_pos = self.events[idx].0 as i64;
+                    let opt_sleep_ms = self.time_control.ms_till_pos(next_pos);
+                    if let Some(sleep_ms) = opt_sleep_ms {
+                        let sleep_ms = sleep_ms.min(20);
+                        trace!("sleep {} ms",sleep_ms);
+                        sleep(Duration::from_millis(sleep_ms as u64));
                     }
                     SequencerState::Playing
                 }
@@ -201,38 +195,28 @@ impl MidiSequencerThread {
 }
 
 pub struct MidiSequencer {
-    ref_pos: Arc<Mutex<RefPosition>>,
+    time_listener: TimeListener,
     control: mpsc::Sender<MidiSequencerCommand>,
 }
 
 impl MidiSequencer {
     pub fn new(out_port: usize, events: Vec<RawMidiTuple>) -> MidiSequencer {
         let (tx, rx) = mpsc::channel();
-        let ref_pos = Arc::new(Mutex::new(RefPosition {
-            pos_us: 0,
-            at_instant: None,
-            scaling_1024: 1024
-        }));
-        let ref_pos2 = ref_pos.clone();
-        thread::spawn(move || MidiSequencerThread::new(rx, out_port, events, ref_pos2).run());
-        MidiSequencer { control: tx, ref_pos }
+        let controller = TimeController::new();
+        let time_listener = controller.new_listener();
+        thread::spawn(move || MidiSequencerThread::new(rx, out_port, events, controller).run());
+        MidiSequencer { control: tx, time_listener }
     }
-    pub fn set_pos_us(&self, pos_us: u64) {
-        let mut ref_pos = self.ref_pos.lock().unwrap();
-        ref_pos.pos_us = pos_us;
-        ref_pos.at_instant = None;
+    pub fn set_pos_us(&self, pos_us: i64) {
+        self.control.send(MidiSequencerCommand::SetPosition(pos_us)).ok();
     }
-    pub fn pos_us(&self) -> u64 {
-        let ref_pos = self.ref_pos.lock().unwrap();
-        match ref_pos.at_instant.as_ref() {
-            None => ref_pos.pos_us,
-            Some(instant) => ref_pos.pos_us + instant.elapsed().subsec_micros() as u64 * 1024 / ref_pos.scaling_1024
-        }
+    pub fn pos_us(&self) -> i64 {
+        self.time_listener.get_pos_us()
     }
     pub fn is_finished(&self) -> bool {
         self.control.send(MidiSequencerCommand::Ping).is_err()
     }
-    pub fn play(&self, pos_us: u64, new_scale: u16, opt_events: Option<Vec<RawMidiTuple>>) {
+    pub fn play(&self, pos_us: i64, new_scale: u16, opt_events: Option<Vec<RawMidiTuple>>) {
         self.control.send(MidiSequencerCommand::Play(pos_us,new_scale,opt_events)).ok();
     }
     pub fn set_scaling_1024(&self, new_scale: u16) {

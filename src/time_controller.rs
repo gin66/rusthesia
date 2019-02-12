@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 struct RefPosition {
     pos_us: i64,
     at_instant: Option<Instant>,
-    scaling_1024: u16
+    scaling_1000: u16
 }
 impl RefPosition {
     pub fn set_pos_us(&mut self, pos_us: i64) {
@@ -20,7 +20,7 @@ impl RefPosition {
                 let elapsed = instant.elapsed();
                 let mut elapsed_us = elapsed.subsec_micros() as i64;
                 elapsed_us += elapsed.as_secs() as i64 * 1_000_000;
-                let scaled_us =  elapsed_us * self.scaling_1024 as i64 / 1024;
+                let scaled_us =  elapsed_us * self.scaling_1000 as i64 / 1000;
                 self.pos_us + scaled_us
             }
         }
@@ -29,9 +29,9 @@ impl RefPosition {
         let pos_us = self.get_pos_us();
         self.set_pos_us(pos_us);
     }
-    pub fn set_scaling_1024(&mut self, new_scale: u16) {
+    pub fn set_scaling_1000(&mut self, new_scale: u16) {
         self.advance_to_now();
-        self.scaling_1024 = new_scale;
+        self.scaling_1000 = new_scale;
     }
     pub fn start(&mut self) {
         self.at_instant = Some(Instant::now());
@@ -43,46 +43,48 @@ impl RefPosition {
         self.advance_to_now();
         self.at_instant = None;
     }
-    pub fn us_till_pos(&self, next_pos_us: i64) -> Option<u32> {
+    pub fn ms_till_pos(&self, next_pos_us: i64) -> Option<u32> {
         let pos_us = self.get_pos_us();
         if pos_us > next_pos_us {
             None
         }
         else {
             let rem_us = next_pos_us - pos_us;
-            let scaled_us = rem_us * 1-24 / self.scaling_1024 as i64;
-            Some(scaled_us as u32)
+            let scaled_ms = rem_us / self.scaling_1000 as i64;
+            if scaled_ms == 0 {
+                None
+            }
+            else {
+                Some(scaled_ms as u32)
+            }
         }
     }
 }
 
 pub trait TimeListenerTrait {
-    fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
-        None
-    }
+    fn get_locked(&self) -> Option<MutexGuard<RefPosition>>;
     fn get_pos_us(&self) -> i64 {
         self.get_locked().unwrap().get_pos_us()
     }
     fn is_running(&self) -> bool {
         self.get_locked().unwrap().is_running()
     }
-    fn us_till_pos(&self, next_pos_us: i64) -> Option<u32> {
-        self.get_locked().unwrap().us_till_pos(next_pos_us)
+    fn ms_till_pos(&self, next_pos_us: i64) -> Option<u32> {
+        self.get_locked().unwrap().ms_till_pos(next_pos_us)
     }
 }
 
 #[derive(Clone)]
-struct TimeListener {
+pub struct TimeListener {
     ref_pos: Arc<Mutex<RefPosition>>,
 }
-impl TimeListener {
+impl TimeListenerTrait for TimeListener {
     fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
         self.ref_pos.lock().ok()
     }
 }
-impl TimeListenerTrait for TimeListener {}
 
-struct TimeController {
+pub struct TimeController {
     ref_pos: Arc<Mutex<RefPosition>>,
 }
 impl TimeController {
@@ -91,7 +93,7 @@ impl TimeController {
             ref_pos: Arc::new(Mutex::new(RefPosition {
             pos_us: 0,
             at_instant: None,
-            scaling_1024: 1024
+            scaling_1000: 1000
         }))}
     }
     pub fn new_listener(&self) -> TimeListener {
@@ -99,14 +101,11 @@ impl TimeController {
             ref_pos: self.ref_pos.clone()
         }
     }
-    fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
-        self.ref_pos.lock().ok()
-    }
     pub fn set_pos_us(&self, pos_us: i64) {
         self.get_locked().unwrap().set_pos_us(pos_us);
     }
-    pub fn set_scaling_1024(&self, new_scale: u16) {
-        self.get_locked().unwrap().set_scaling_1024(new_scale);
+    pub fn set_scaling_1000(&self, new_scale: u16) {
+        self.get_locked().unwrap().set_scaling_1000(new_scale);
     }
     pub fn start(&self) {
         self.get_locked().unwrap().start();
@@ -115,4 +114,8 @@ impl TimeController {
         self.get_locked().unwrap().stop();
     }
 }
-impl TimeListenerTrait for TimeController {}
+impl TimeListenerTrait for TimeController {
+    fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
+        self.ref_pos.lock().ok()
+    }
+}

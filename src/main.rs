@@ -399,7 +399,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut scale_1024 = 1024;
     sequencer.play(0, scale_1024, None);
     'running: loop {
-        let pos_us = sequencer.pos_us();
+        let pos_us: i64 = sequencer.pos_us();
         if opt_last_draw_instant
             .map(|x| x.elapsed().subsec_millis() > 20)
             .unwrap_or(true)
