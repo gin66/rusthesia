@@ -17,6 +17,7 @@ use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 
+mod time_controller;
 mod midi_container;
 mod midi_sequencer;
 mod usage;
