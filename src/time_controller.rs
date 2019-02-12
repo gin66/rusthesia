@@ -1,5 +1,5 @@
 use std::time::Instant;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 struct RefPosition {
     pos_us: i64,
@@ -43,9 +43,45 @@ impl RefPosition {
         self.advance_to_now();
         self.at_instant = None;
     }
+    pub fn us_till_pos(&self, next_pos_us: i64) -> Option<u32> {
+        let pos_us = self.get_pos_us();
+        if pos_us > next_pos_us {
+            None
+        }
+        else {
+            let rem_us = next_pos_us - pos_us;
+            let scaled_us = rem_us * 1-24 / self.scaling_1024 as i64;
+            Some(scaled_us as u32)
+        }
+    }
+}
+
+pub trait TimeListenerTrait {
+    fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
+        None
+    }
+    fn get_pos_us(&self) -> i64 {
+        self.get_locked().unwrap().get_pos_us()
+    }
+    fn is_running(&self) -> bool {
+        self.get_locked().unwrap().is_running()
+    }
+    fn us_till_pos(&self, next_pos_us: i64) -> Option<u32> {
+        self.get_locked().unwrap().us_till_pos(next_pos_us)
+    }
 }
 
 #[derive(Clone)]
+struct TimeListener {
+    ref_pos: Arc<Mutex<RefPosition>>,
+}
+impl TimeListener {
+    fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
+        self.ref_pos.lock().ok()
+    }
+}
+impl TimeListenerTrait for TimeListener {}
+
 struct TimeController {
     ref_pos: Arc<Mutex<RefPosition>>,
 }
@@ -58,22 +94,25 @@ impl TimeController {
             scaling_1024: 1024
         }))}
     }
-    pub fn set_pos_us(&self, pos_us: i64) {
-        self.ref_pos.lock().unwrap().set_pos_us(pos_us);
+    pub fn new_listener(&self) -> TimeListener {
+        TimeListener {
+            ref_pos: self.ref_pos.clone()
+        }
     }
-    pub fn get_pos_us(&self) -> i64 {
-        self.ref_pos.lock().unwrap().get_pos_us()
+    fn get_locked(&self) -> Option<MutexGuard<RefPosition>> {
+        self.ref_pos.lock().ok()
+    }
+    pub fn set_pos_us(&self, pos_us: i64) {
+        self.get_locked().unwrap().set_pos_us(pos_us);
     }
     pub fn set_scaling_1024(&self, new_scale: u16) {
-        self.ref_pos.lock().unwrap().set_scaling_1024(new_scale);
+        self.get_locked().unwrap().set_scaling_1024(new_scale);
     }
     pub fn start(&self) {
-        self.ref_pos.lock().unwrap().start();
-    }
-    pub fn is_running(&self) -> bool {
-        self.ref_pos.lock().unwrap().is_running()
+        self.get_locked().unwrap().start();
     }
     pub fn stop(&self) {
-        self.ref_pos.lock().unwrap().stop();
+        self.get_locked().unwrap().stop();
     }
 }
+impl TimeListenerTrait for TimeController {}
