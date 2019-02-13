@@ -245,7 +245,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
 
     if show_tracks.len() == 0 {
-        sequencer.play(0, 1000, None);
+        sequencer.play(0, Some(1000), None);
         loop {
             sleep(Duration::from_millis(1000));
             if sequencer.is_finished() {
@@ -397,7 +397,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut opt_last_draw_instant: Option<Instant> = None;
     let mut finger_msg = format!("----");
     let mut scale_1000 = 1000;
-    sequencer.play(0, scale_1000, None);
+    sequencer.play(0, Some(scale_1000), None);
     'running: loop {
         let pos_us: i64 = sequencer.pos_us();
         if opt_last_draw_instant
@@ -634,7 +634,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.stop();
                     }
                     else {
-                        sequencer.play(pos_us, scale_1000, None);
+                        sequencer.play(pos_us, None, None);
                     }
                 }
                 Event::KeyDown {
@@ -660,7 +660,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.set_pos_us(pos_us);
                     }
                     else {
-                        sequencer.play(pos_us, scale_1000, None);
+                        sequencer.play(pos_us, None, None);
                     }
                 }
                 Event::KeyDown {
@@ -677,7 +677,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         sequencer.set_pos_us(pos_us);
                     }
                     else {
-                        sequencer.play(pos_us, scale_1000, None);
+                        sequencer.play(pos_us, None, None);
                     }
                 }
                 Event::KeyDown {

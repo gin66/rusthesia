@@ -1,7 +1,7 @@
 use std::time::Instant;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-struct RefPosition {
+pub struct RefPosition {
     pos_us: i64,
     at_instant: Option<Instant>,
     scaling_1000: u16
