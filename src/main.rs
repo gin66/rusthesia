@@ -20,6 +20,7 @@ use sdl2::pixels::Color;
 mod time_controller;
 mod midi_container;
 mod midi_sequencer;
+mod keyboard;
 mod usage;
 
 #[derive(Copy, Clone)]
