@@ -211,8 +211,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return Ok(());
     }
 
-    let mut sdl_context = sdl2::init().unwrap();
-    let draw_engine = draw_engine::DrawEngine::init(&mut sdl_context)?;
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+    let draw_engine = draw_engine::DrawEngine::init(video_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut paused = false;
@@ -220,6 +221,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     sequencer.play(0, Some(scale_1000), None);
     'running: loop {
         let pos_us: i64 = sequencer.pos_us();
+        draw_engine.draw(pos_us)?;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
