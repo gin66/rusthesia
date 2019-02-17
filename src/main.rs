@@ -12,6 +12,7 @@ use clap::{value_t, values_t};
 
 use sdl2::keyboard::Keycode;
 use sdl2::event::Event;
+use sdl2::gfx::framerate::FPSManager;
 
 mod time_controller;
 mod midi_container;
@@ -120,10 +121,26 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
 
     // Get all the events to show/play
-    let _show_events = container
+    let show_events = container
         .iter()
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
+        .filter_map(|(time_us, trk, evt)| match evt {
+            midly::EventKind::Midi { channel, message } => match message {
+                midly::MidiMessage::NoteOn(key, pressure) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::NoteOn(channel.as_int(), key.as_int(), pressure.as_int()),
+                )),
+                midly::MidiMessage::NoteOff(key, pressure) => Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::NoteOff(channel.as_int(), key.as_int(), pressure.as_int()),
+                )),
+                _ => None
+            },
+            _ => None,
+        })
         .collect::<Vec<_>>();
     let play_events = container
         .iter()
@@ -213,15 +230,82 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
+    let window = video_subsystem
+        .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
+        .position_centered()
+        .resizable()
+        .build()
+        .unwrap();
+    let mut window_context = window.context();
+    let mut canvas = sdl2::render::CanvasBuilder::new(window)
+        .accelerated()
+        .build()?;
+    let mut texture_creator = canvas.texture_creator();
+    let mut textures: Vec<sdl2::render::Texture> = vec![];
+
     let draw_engine = draw_engine::DrawEngine::init(video_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut paused = false;
     let mut scale_1000 = 1000;
+    let mut fps_manager = FPSManager::new();
+    let mut opt_keyboard = None;
+
+    fps_manager.set_framerate(50)?;
+
     sequencer.play(0, Some(scale_1000), None);
     'running: loop {
         let pos_us: i64 = sequencer.pos_us();
-        draw_engine.draw(pos_us)?;
+
+        let rec = canvas.viewport();
+        let width = rec.width();
+
+        if opt_keyboard.is_none() {
+            trace!("Create Keyboard");
+            textures.clear();
+            opt_keyboard = Some(piano_keyboard::KeyboardBuilder::new()
+                                .set_width(rec.width() as u16)?
+                                .white_black_gap_present(true)
+                                .build2d());
+        }
+        let keyboard = opt_keyboard.as_ref().unwrap();
+        if width != keyboard.width as u32 {
+            textures.clear();
+        }
+
+        if textures.len() == 0 {
+            trace!("Create keyboard textures");
+            // Texture 0 are for unpressed and 1 for pressed keys
+            for pressed in vec![false,true].drain(..) {
+                let mut texture = texture_creator
+                    .create_texture_target(texture_creator.default_pixel_format(),
+                                            width, keyboard.height as u32)
+                    .unwrap();
+                let result = canvas.with_texture_canvas(&mut texture, |texture_canvas| {
+                    draw_engine::draw_keyboard(keyboard,texture_canvas,pressed);
+                });
+                textures.push(texture);
+            }
+        }
+
+        // Clear canvas
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(100,100,100));
+        canvas.clear();
+
+        // Copy keyboard with unpressed keys
+        let dst_rec = sdl2::rect::Rect::new(0,(rec.height()-keyboard.height as u32-1) as i32,
+                                            width,keyboard.height as u32);
+        canvas.copy(&textures[0], None, dst_rec)?;
+
+        let pressed_rectangles = draw_engine::get_pressed_key_rectangles(&keyboard,
+                                            rec.height()-keyboard.height as u32 - 1,
+                                            pos_us, &show_events);
+        for (src_rec,dst_rec) in pressed_rectangles.into_iter() {
+            canvas.copy(&textures[1], src_rec, dst_rec)?;
+        }
+
+        canvas.present();
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -329,7 +413,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         // The rest of the game loop goes here...
-        sleep(Duration::from_millis(20));
+        println!("{}",fps_manager.delay());
     }
     sleep(Duration::from_millis(150));
     Ok(())

@@ -1,12 +1,12 @@
 use std::time::{Duration,Instant};
-use std::rc::Rc;
-use std::cell::RefCell;
 
 use font_kit;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::pixels::Color;
 
 use piano_keyboard;
+
+use crate::midi_sequencer;
 
 #[derive(Copy, Clone)]
 enum NoteState {
@@ -24,25 +24,90 @@ fn trk2col(trk: usize, key: u32) -> Color {
     }
 }
 
-struct DrawContext {
-    opt_canvas: Option<sdl2::render::Canvas<sdl2::video::Window>>,
-    //opt_waterfall: Option<sdl2::render::Texture>,
+pub fn draw_keyboard(keyboard: &piano_keyboard::Keyboard2d,
+                     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+                     pressed: bool) {
+    canvas.set_draw_color(sdl2::pixels::Color::RGB(100,100,100));
+    canvas.clear();
+    let rec = canvas.viewport();
+    let (col_white,col_black) = if pressed  {
+        (Color::RGB(100, 255, 255),Color::RGB( 50, 150, 150))
+    }
+    else {
+        (Color::RGB(200, 200, 200),Color::RGB(  0,   0,   0))
+    };
+    
+    for (col,rects) in vec![(col_white,keyboard.white_keys(true)),
+                            (col_black,keyboard.black_keys())].drain(..) {
+        canvas.set_draw_color(col);
+        for rect in rects.into_iter() {
+            let rec = sdl2::rect::Rect::new(
+                rect.x as i32,
+                rect.y as i32,
+                rect.width as u32,
+                rect.height as u32);
+            canvas.fill_rect(rec);
+        }
+    }
 }
 
+pub fn get_pressed_key_rectangles(keyboard: &piano_keyboard::Keyboard2d,
+                               height_offset: u32,
+                               pos_us: i64,
+                               show_events: &Vec<(u64, usize,
+                                            midi_sequencer::MidiEvent)>)
+                            -> Vec<(sdl2::rect::Rect,sdl2::rect::Rect)> {
+    let nr_of_keys = keyboard.right_white_key-keyboard.left_white_key+1;
+    let mut pressed = vec![false; nr_of_keys as usize];
+    let left_key = keyboard.left_white_key;
+
+    for (time, _, evt) in show_events.iter() {
+        if (*time as i64) > pos_us {
+            break;
+        }
+        match evt {
+            midi_sequencer::MidiEvent::NoteOn(_channel, key, pressure) if *pressure > 0 =>
+                pressed[(key-left_key) as usize] = true,
+            midi_sequencer::MidiEvent::NoteOn(_channel, key, 0)
+            | midi_sequencer::MidiEvent::NoteOff(_channel, key, _) =>
+                pressed[(key-left_key) as usize] = false,
+            _ => ()
+        }
+    }
+
+    let mut highlight = vec![];
+    for (el,is_pressed) in keyboard.iter().zip(pressed.iter()) {
+        if *is_pressed {
+            let rects = match *el {
+                piano_keyboard::Element::WhiteKey { 
+                    wide: ref r1, small: ref r2, blind: Some(ref r3) } => vec![r1,r2,r3],
+                piano_keyboard::Element::WhiteKey { 
+                    wide: ref r1, small: ref r2, blind: None } => vec![r1,r2],
+                piano_keyboard::Element::BlackKey(ref r1) => vec![r1]
+            };
+            for r in rects.into_iter() {
+                let src_rec = sdl2::rect::Rect::new(r.x as i32, r.y as i32,
+                                                    r.width as u32,r.height as u32);
+                let dst_rec = sdl2::rect::Rect::new(r.x as i32,
+                                                    (r.y as u32 + height_offset) as i32,
+                                                    r.width as u32,r.height as u32);
+                highlight.push( (src_rec,dst_rec) );
+            }
+        }
+    }
+    highlight
+}
+
+
+
+
+
+
 pub struct DrawEngine {
-    context: Rc<RefCell<DrawContext>>,
-    texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext>,
 }
 impl DrawEngine {
     pub fn init(video_subsystem: sdl2::VideoSubsystem) -> Result<DrawEngine, Box<std::error::Error>> {
         let midi_fname = format!("fname");
-        let window = video_subsystem
-            .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
-            .position_centered()
-            .resizable()
-            .build()
-            .unwrap();
-
         let ttf_context = sdl2::ttf::init().unwrap();
         let opt_font = if let Ok(font) =
             font_kit::source::SystemSource::new().select_by_postscript_name("ArialMT")
@@ -67,22 +132,14 @@ impl DrawEngine {
         };
         println!("Have font={:?}", opt_font.is_some());
 
-        let mut canvas = window.into_canvas().build().unwrap();
-        let texture_creator = canvas.texture_creator();
-
-        let dc = DrawContext {
-            opt_canvas: Some(canvas),
-        //    opt_waterfall: None
-        };
-
         Ok(DrawEngine {
-            context: Rc::new(RefCell::new(dc)),
-            texture_creator,
         })
         //Err(Error::new(ErrorKind::Other, "oh no!"))
     }
 
-    pub fn draw(&self, pos_us: i64) -> Result<(), Box<std::error::Error>> {
+    pub fn draw(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+                textures: &mut Vec<sdl2::render::Texture>,
+                pos_us: i64) -> Result<(), Box<std::error::Error>> {
         let mut paused = false;
         let mut pos_us = 0;
         let mut scale_1000 = 1000;
@@ -90,10 +147,6 @@ impl DrawEngine {
         let maxtime = 100;
         let opt_font: Option<sdl2::ttf::Font> = None;
         let (left_key,right_key) = (21,108);
-
-        let context_cell = self.context.clone();
-        let mut context = context_cell.borrow_mut();
-        let mut canvas = context.opt_canvas.take().unwrap();
 
         canvas.set_draw_color(Color::RGB(0, 255, 255));
         canvas.clear();
@@ -256,31 +309,33 @@ impl DrawEngine {
                     //    state = new_state;
                     //}
                 }
-                opt_waterfall =
-                    Some(self.texture_creator.create_texture_from_surface(wf_canvas.into_surface())?);
+                //let surface: sdl2::surface::Surface = wf_canvas.into_surface();
+                //let texture: sdl2::render::Texture = 
+                //    texture_creator.create_texture_from_surface(surface)?;
+                //textures.push(texture);
             }
 
+            if false {
+                let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
 
-            let wf_win_height = (rec.bottom() - white_key_height as i32) as u32;
-
-            let wf_height = opt_waterfall.as_ref().unwrap().query().height;
-            let y_shift =
-                (pos_us as u64/1_000 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
-            let (y_src, y_dst, y_height) = if y_shift > wf_height {
-                let dy = y_shift - wf_height;
-                if wf_win_height >= dy {
-                    (0, dy, wf_win_height - dy)
-                }
-                else {
-                    (0, dy, 1)
-                }
-            } else {
-                (wf_height - y_shift.min(wf_height), 0, wf_win_height)
-            };
-            let src_rect = sdl2::rect::Rect::new(0, y_src as i32, rec.width(), y_height);
-            let dst_rect = sdl2::rect::Rect::new(0, y_dst as i32, rec.width(), y_height);
-            canvas.copy(opt_waterfall.as_ref().unwrap(), src_rect, dst_rect)?;
-
+                let wf_height = opt_waterfall.as_ref().unwrap().query().height;
+                let y_shift =
+                    (pos_us as u64/1_000 * wf_height as u64 / maxtime as u64) as u32 + wf_win_height;
+                let (y_src, y_dst, y_height) = if y_shift > wf_height {
+                    let dy = y_shift - wf_height;
+                    if wf_win_height >= dy {
+                        (0, dy, wf_win_height - dy)
+                    }
+                    else {
+                        (0, dy, 1)
+                    }
+                } else {
+                    (wf_height - y_shift.min(wf_height), 0, wf_win_height)
+                };
+                let src_rect = sdl2::rect::Rect::new(0, y_src as i32, rec.width(), y_height);
+                let dst_rect = sdl2::rect::Rect::new(0, y_dst as i32, rec.width(), y_height);
+                canvas.copy(opt_waterfall.as_ref().unwrap(), src_rect, dst_rect)?;
+            }
             canvas.set_draw_color(Color::RGB(200, 200, 200));
             canvas.fill_rects(&white_keys).unwrap();
             canvas.set_draw_color(Color::RGB(255, 255, 255));
@@ -304,21 +359,17 @@ impl DrawEngine {
                         if let Ok(surface) =
                             font.render(&line).solid(Color::RGBA(255, 255, 255, 255))
                         {
-                            let demo_tex = self.texture_creator
-                                .create_texture_from_surface(surface)
-                                .unwrap();
-                            canvas
-                                .copy(&demo_tex, None, sdl2::rect::Rect::new(10, y, width, height))
-                                .unwrap();
+                            //let demo_tex = texture_creator
+                            //    .create_texture_from_surface(surface)
+                            //    .unwrap();
+                            //canvas
+                            //    .copy(&demo_tex, None, sdl2::rect::Rect::new(10, y, width, height))
+                            //    .unwrap();
                             y += height as i32 + 2;
                         }
                     }
                 }
             }
-
-            canvas.present();
-
-            context.opt_canvas = Some(canvas);
         }
         Ok(())
     }
