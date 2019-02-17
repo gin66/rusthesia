@@ -19,6 +19,7 @@ midly = "0.1"
 clap = "2.32"
 indoc = "0.3"
 font-kit = "0.1"
+piano_keyboard = "0.1"
 
 [dependencies.sdl2]
 version = "0.31"
