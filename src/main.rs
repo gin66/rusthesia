@@ -252,6 +252,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut scale_1000 = 1000;
     let mut fps_manager = FPSManager::new();
     let mut opt_keyboard = None;
+    let rows_per_s = 100;
 
     fps_manager.set_framerate(50)?;
 
@@ -288,6 +289,24 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 });
                 textures.push(texture);
             }
+
+            // Texture 2.. are for waterfall.
+            //
+            let maxtime_us = show_events[show_events.len()-1].0;
+            let rows = (maxtime_us * rows_per_s + 999_999) / 1_000_000;
+            let nr_of_textures = (rows + 7_999)/8_000;
+            trace!("Needed rows/textures: {}/{}",rows,nr_of_textures);
+            for i in 0..nr_of_textures {
+                let mut texture = texture_creator
+                    .create_texture_target(texture_creator.default_pixel_format(),
+                                            width, 8_000)
+                    .unwrap();
+                let result = canvas.with_texture_canvas(&mut texture, |texture_canvas| {
+                    draw_engine::draw_waterfall(keyboard,texture_canvas,i*8_000,8_000,rows_per_s,&show_events);
+                });
+                textures.push(texture);
+            }
+            
         }
 
         // Clear canvas
@@ -306,6 +325,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
             canvas.copy(&textures[1], src_rec, dst_rec)?;
         }
 
+        let row = pos_us * rows_per_s as i64 / 1_000_000;
+        let t_i = row / 8000;
+        let row = row - t_i * 8000;
+        let src_rec = sdl2::rect::Rect::new(0,row as i32,
+                                            width,rec.height()-keyboard.height as u32-1);
+        let dst_rec = sdl2::rect::Rect::new(0,0,
+                                            width,rec.height()-keyboard.height as u32-1);
+        canvas.copy(&textures[2+t_i as usize], src_rec, dst_rec)?;
         canvas.present();
 
         for event in event_pump.poll_iter() {
@@ -415,7 +442,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         // The rest of the game loop goes here...
-        trace!("{}",fps_manager.delay());
+        fps_manager.delay();
     }
     sleep(Duration::from_millis(150));
     Ok(())

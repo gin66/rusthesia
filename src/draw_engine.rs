@@ -3,6 +3,7 @@ use std::time::{Duration,Instant};
 use font_kit;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::pixels::Color;
+use log::*;
 
 use piano_keyboard;
 
@@ -88,7 +89,7 @@ pub fn get_pressed_key_rectangles(keyboard: &piano_keyboard::Keyboard2d,
     for (el,is_pressed) in keyboard.iter().zip(pressed.iter()) {
         if *is_pressed > 0 {
             let rects = match *el {
-                piano_keyboard::Element::WhiteKey { 
+                piano_keyboard::Element::WhiteKey {
                     wide: ref r1, small: ref r2, blind: Some(ref r3) } => vec![r1,r2,r3],
                 piano_keyboard::Element::WhiteKey { 
                     wide: ref r1, small: ref r2, blind: None } => vec![r1,r2],
@@ -107,6 +108,60 @@ pub fn get_pressed_key_rectangles(keyboard: &piano_keyboard::Keyboard2d,
     highlight
 }
 
+pub fn draw_waterfall(keyboard: &piano_keyboard::Keyboard2d,
+                      canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+                      bottom_row: u64, rows: u64,
+                      rows_per_s: u64,
+                      show_events: &Vec<(u64, usize,
+                                            midi_sequencer::MidiEvent)>) {
+    let left_key = keyboard.left_white_key;
+
+    canvas.set_draw_color(Color::RGB(255,255,255));
+    for (i,el) in keyboard.iter().enumerate() {
+        let sel_key = left_key + i as u8;
+        let (x,width) = match *el {
+            piano_keyboard::Element::WhiteKey {
+                wide: _, small: ref r1, blind: Some(ref r2) } => (r1.x.min(r2.x),r1.width+r2.width),
+            piano_keyboard::Element::WhiteKey { 
+                wide: _, small: ref r, blind: None }
+            | piano_keyboard::Element::BlackKey(ref r) => (r.x,r.width)
+        };
+        let mut opt_start = None;
+        for (time, _, evt) in show_events.iter() {
+            // TODO: This needs more work. Adjacent midi notes are shown continuously...
+            match evt {
+                midi_sequencer::MidiEvent::NoteOn(_channel, key, pressure) if *key == sel_key && *pressure > 0=> {
+                    opt_start = Some(time)
+                },
+                midi_sequencer::MidiEvent::NoteOn(_channel, key, 0) 
+                | midi_sequencer::MidiEvent::NoteOff(_channel, key, _) if *key == sel_key => {
+                    if let Some(start) = opt_start {
+                        let start_row = start * rows_per_s / 1_000_000;
+                        let end_row = time * rows_per_s / 1_000_000;
+                        if end_row <= bottom_row {
+                            continue;
+                        }
+                        if start_row > bottom_row+rows {
+                            continue;
+                        }
+                        let start_row = start_row.max(bottom_row);
+                        let end_row = end_row.min(bottom_row+rows-1) - start_row;
+                        let start_row = start_row - bottom_row;
+                        let rec = sdl2::rect::Rect::new(
+                            x as i32,
+                            start_row as i32,
+                            width as u32,
+                            end_row as u32);
+                        trace!("Need draw: {:?}",rec);
+                        canvas.fill_rect(rec);
+                    }
+                    opt_start = None;
+                }
+                _ => ()
+            }
+        }
+    }
+}
 
 
 
