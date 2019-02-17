@@ -2,6 +2,13 @@
 
 Rusthesia is till now just a hack to play a midi file, created from Logic Pro/X, and display a window with falling notes down onto a piano.
 
+
+========================
+
+# The development version is under rework. Waterfall and key shift is not yet reimplemented.
+
+========================
+
 The midi file can be transposed in half notes in realtime by using shift left/right key. Playing can be paused by space.
 
 
@@ -100,7 +107,7 @@ Very positively surprised, that it works pretty well. Even can play along by han
 
 ### Linux
 
-As per info from Samuel Da Moto, the code works on linux:
+As per info from Samuel Da Mota, the code works on linux:
 
 > No need to change a single
 > line of code or configuration whatsoever. One only need to install the
