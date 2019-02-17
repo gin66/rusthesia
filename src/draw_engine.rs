@@ -58,26 +58,35 @@ pub fn get_pressed_key_rectangles(keyboard: &piano_keyboard::Keyboard2d,
                                             midi_sequencer::MidiEvent)>)
                             -> Vec<(sdl2::rect::Rect,sdl2::rect::Rect)> {
     let nr_of_keys = keyboard.right_white_key-keyboard.left_white_key+1;
-    let mut pressed = vec![false; nr_of_keys as usize];
+    let mut pressed = vec![0; nr_of_keys as usize];
     let left_key = keyboard.left_white_key;
 
     for (time, _, evt) in show_events.iter() {
+        // TODO: This needs more work. Adjacent midi notes are shown continuously...
         if (*time as i64) > pos_us {
             break;
         }
-        match evt {
-            midi_sequencer::MidiEvent::NoteOn(_channel, key, pressure) if *pressure > 0 =>
-                pressed[(key-left_key) as usize] = true,
-            midi_sequencer::MidiEvent::NoteOn(_channel, key, 0)
-            | midi_sequencer::MidiEvent::NoteOff(_channel, key, _) =>
-                pressed[(key-left_key) as usize] = false,
-            _ => ()
+        if (*time as i64) + 50_000 > pos_us {
+            match evt {
+                midi_sequencer::MidiEvent::NoteOn(_channel, key, pressure) =>
+                    pressed[(key-left_key) as usize] = *pressure,
+                _ => ()
+            }
+        }
+        else {
+            match evt {
+                midi_sequencer::MidiEvent::NoteOn(_channel, key, pressure) =>
+                    pressed[(key-left_key) as usize] = *pressure,
+                midi_sequencer::MidiEvent::NoteOff(_channel, key, _) =>
+                    pressed[(key-left_key) as usize] = 0,
+                _ => ()
+            }
         }
     }
 
     let mut highlight = vec![];
     for (el,is_pressed) in keyboard.iter().zip(pressed.iter()) {
-        if *is_pressed {
+        if *is_pressed > 0 {
             let rects = match *el {
                 piano_keyboard::Element::WhiteKey { 
                     wide: ref r1, small: ref r2, blind: Some(ref r3) } => vec![r1,r2,r3],

@@ -148,15 +148,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
             midly::EventKind::Midi { channel, message } => match message {
+                // TODO: CHANNEL HACK REMOVAL
                 midly::MidiMessage::NoteOn(key, pressure) => Some((
                     time_us,
                     trk,
-                    midi_sequencer::MidiEvent::NoteOn(channel.as_int(), key.as_int(), pressure.as_int()),
+                    midi_sequencer::MidiEvent::NoteOn(0*channel.as_int(), key.as_int(), pressure.as_int()),
                 )),
                 midly::MidiMessage::NoteOff(key, pressure) => Some((
                     time_us,
                     trk,
-                    midi_sequencer::MidiEvent::NoteOff(channel.as_int(), key.as_int(), pressure.as_int()),
+                    midi_sequencer::MidiEvent::NoteOff(0*channel.as_int(), key.as_int(), pressure.as_int()),
                 )),
                 midly::MidiMessage::Aftertouch(key, pressure) => Some((
                     time_us,
@@ -183,13 +184,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     trk,
                     midi_sequencer::MidiEvent::ProgramChange(channel.as_int(), program.as_int()),
                 )),
+                _ => None
             },
             _ => None,
         })
         .inspect(|e| trace!("{:?}",e))
         .collect::<Vec<_>>();
 
-    println!("output");
+    trace!("output");
     let midi_out = MidiOutput::new("My Test Output")?;
     // Get an output port (read from console if multiple are available)
     let out_port = match midi_out.port_count() {
@@ -413,7 +415,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         // The rest of the game loop goes here...
-        println!("{}",fps_manager.delay());
+        trace!("{}",fps_manager.delay());
     }
     sleep(Duration::from_millis(150));
     Ok(())
