@@ -12,7 +12,6 @@ use clap::{value_t, values_t};
 
 use sdl2::keyboard::Keycode;
 use sdl2::event::Event;
-use sdl2::gfx::framerate::FPSManager;
 
 mod time_controller;
 mod midi_container;
@@ -261,12 +260,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut paused = false;
     let mut scale_1000 = 1000;
-    let mut fps_manager = FPSManager::new();
     let mut opt_keyboard = None;
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
-    fps_manager.set_framerate(50)?;
     let base_time = Instant::now();
     let ms_per_frame = 20;
 
@@ -490,10 +487,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
         trace!("before sleep {:?}",sleep_duration);
         std::thread::sleep(sleep_duration);
-
-        // The rest of the game loop goes here...
-        //let res = fps_manager.delay();
-        //trace!("fps_manager -> {}",res);
     }
     sleep(Duration::from_millis(150));
     Ok(())
