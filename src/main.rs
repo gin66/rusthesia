@@ -1,6 +1,6 @@
 use std::io::{stdin, stdout, Write};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Instant,Duration};
 
 use log::*;
 use simple_logging;
@@ -264,9 +264,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut fps_manager = FPSManager::new();
     let mut opt_keyboard = None;
     let rows_per_s = 100;
-    let waterfall_tex_height = 8000;
+    let waterfall_tex_height = 1000;
 
     fps_manager.set_framerate(50)?;
+    let base_time = Instant::now();
+    let ms_per_frame = 20;
 
     sequencer.play(-3_000_000, Some(scale_1000), None);
     'running: loop {
@@ -361,120 +363,137 @@ fn main() -> Result<(), Box<std::error::Error>> {
         canvas.present();
 
         trace!("before Eventloop");
-        for event in event_pump.poll_iter() {
-            trace!("event received: {:?}",event);
-            match event {
-                Event::Window { win_event,.. } => {
-                    trace!("Window Event: {:?}",win_event);
-                }
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                Event::KeyDown {
-                    keycode: Some(Keycode::Space),
-                    ..
-                } => {
-                    paused = !paused;
-                    if paused {
-                        sequencer.stop();
-                    }
-                    else {
-                        sequencer.play(pos_us, None, None);
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Plus),
-                    ..
-                } => {
-                    scale_1000 = 4000.min(scale_1000 + 50);
-                    sequencer.set_scaling_1000(scale_1000);
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Minus),
-                    ..
-                } => {
-                    scale_1000 = 250.max(scale_1000 - 50);
-                    sequencer.set_scaling_1000(scale_1000);
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Up),
-                    ..
-                } => {
-                    let pos_us = pos_us + 5_000_000;
-                    if paused {
-                        sequencer.set_pos_us(pos_us);
-                    }
-                    else {
-                        sequencer.play(pos_us, None, None);
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Down),
-                    ..
-                } => {
-                    let pos_us = if pos_us > 5_000_000 {
-                        pos_us - 5_000_000
-                    }
-                    else {
-                        0
-                    };
-                    if paused {
-                        sequencer.set_pos_us(pos_us);
-                    }
-                    else {
-                        sequencer.play(pos_us, None, None);
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Left),
-                    ..
-                } => {
-                    shift_key += 1;
-                    //opt_waterfall = None;
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Right),
-                    ..
-                } => {
-                    shift_key -= 1;
-                    //opt_waterfall = None;
-                }
-                Event::MultiGesture {
-                    timestamp,
-                    touch_id,
-                    x,
-                    y,
-                    num_fingers,
-                    ..
-                } => {
-                    //finger_msg = format!(
-                    //    "t={} id={} fid={} x={:.2} y={:.2}",
-                    //    timestamp, touch_id, num_fingers, x, y
-                    //);
-                }
-                Event::FingerMotion {
-                    timestamp: _timestamp,
-                    touch_id: _touch_id,
-                    finger_id: _finger_id,
-                    x: _x,
-                    y: _y,
-                    dx: _dx,
-                    dy: _dy,
-                    pressure: _pressure,
-                } => {
-                    //finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2} dx={:.2} dy={:.2}",
-                    //                  timestamp, touch_id, finger_id,
-                    //                  x,y,dx,dy);
-                }
-                _ => {}
+        //for event in event_pump.poll_iter() {
+        let mut empty = false;
+        let sleep_duration = loop {
+            let elapsed = base_time.elapsed();
+            let elapsed_us = elapsed.subsec_micros();
+            let rem_us = ms_per_frame * 1_000 - elapsed_us % (ms_per_frame * 1_000);
+            if empty || rem_us < 5_000 {
+                break Duration::new(0, rem_us*1_000);
             }
-        }
+
+            if let Some(event) = event_pump.wait_event_timeout(1) {
+                trace!("event received: {:?}",event);
+                match event {
+                    Event::Window { win_event,.. } => {
+                        trace!("Window Event: {:?}",win_event);
+                    }
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => break 'running,
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Space),
+                        ..
+                    } => {
+                        paused = !paused;
+                        if paused {
+                            sequencer.stop();
+                        }
+                        else {
+                            sequencer.play(pos_us, None, None);
+                        }
+                    }
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Plus),
+                        ..
+                    } => {
+                        scale_1000 = 4000.min(scale_1000 + 50);
+                        sequencer.set_scaling_1000(scale_1000);
+                    }
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Minus),
+                        ..
+                    } => {
+                        scale_1000 = 250.max(scale_1000 - 50);
+                        sequencer.set_scaling_1000(scale_1000);
+                    }
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Up),
+                        ..
+                    } => {
+                        let pos_us = pos_us + 5_000_000;
+                        if paused {
+                            sequencer.set_pos_us(pos_us);
+                        }
+                        else {
+                            sequencer.play(pos_us, None, None);
+                        }
+                    }
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Down),
+                        ..
+                    } => {
+                        let pos_us = if pos_us > 5_000_000 {
+                            pos_us - 5_000_000
+                        }
+                        else {
+                            0
+                        };
+                        if paused {
+                            sequencer.set_pos_us(pos_us);
+                        }
+                        else {
+                            sequencer.play(pos_us, None, None);
+                        }
+                    }
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Left),
+                        ..
+                    } => {
+                        shift_key += 1;
+                        //opt_waterfall = None;
+                    }
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Right),
+                        ..
+                    } => {
+                        shift_key -= 1;
+                        //opt_waterfall = None;
+                    }
+                    Event::MultiGesture {
+                        timestamp,
+                        touch_id,
+                        x,
+                        y,
+                        num_fingers,
+                        ..
+                    } => {
+                        //finger_msg = format!(
+                        //    "t={} id={} fid={} x={:.2} y={:.2}",
+                        //    timestamp, touch_id, num_fingers, x, y
+                        //);
+                    }
+                    Event::FingerMotion {
+                        timestamp: _timestamp,
+                        touch_id: _touch_id,
+                        finger_id: _finger_id,
+                        x: _x,
+                        y: _y,
+                        dx: _dx,
+                        dy: _dy,
+                        pressure: _pressure,
+                    } => {
+                        //finger_msg = format!("t={} id={} fid={} x={:.2} y={:.2} dx={:.2} dy={:.2}",
+                        //                  timestamp, touch_id, finger_id,
+                        //                  x,y,dx,dy);
+                    }
+                    _ => {}
+                }
+            }
+            else {
+                empty = true;
+            }
+        };
+
+        trace!("before sleep {:?}",sleep_duration);
+        std::thread::sleep(sleep_duration);
+
         // The rest of the game loop goes here...
-        trace!("before fps_manager");
-        let res = fps_manager.delay();
-        trace!("fps_manager -> {}",res);
+        //let res = fps_manager.delay();
+        //trace!("fps_manager -> {}",res);
     }
     sleep(Duration::from_millis(150));
     Ok(())

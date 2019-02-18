@@ -120,7 +120,7 @@ pub fn draw_waterfall(keyboard: &piano_keyboard::Keyboard2d,
     // The waterfall is flowing from top to bottom with SDL having origin top left.
     // Thus every texture has to fill from bottom to top.
 
-    let i = i as u8 * 40;
+    let i = (i & 1) as u8 * 40;
     canvas.set_draw_color(sdl2::pixels::Color::RGB(140+i,140+i,140+i));
     canvas.clear();
 
