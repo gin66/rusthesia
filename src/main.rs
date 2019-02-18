@@ -50,6 +50,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         (21, 108)
     };
 
+    let nr_of_keys = right_key - left_key + 1;
+
     let midi_fname = matches.value_of("MIDI").unwrap();
     let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
@@ -232,12 +234,21 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
+    println!("display driver: {:?}",video_subsystem.current_video_driver());
+    println!("dpi: {:?}",video_subsystem.display_dpi(0));
+    println!("Screensaver: {:?}",video_subsystem.is_screen_saver_enabled());
+
+    println!("Swap interval: {:?}",video_subsystem.gl_get_swap_interval());
+    println!("{:?}",video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::VSync));
+    println!("Swap interval: {:?}",video_subsystem.gl_get_swap_interval());
+
     let window = video_subsystem
         .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
         .position_centered()
         .resizable()
         .build()
         .unwrap();
+    println!("Display Mode: {:?}",window.display_mode());
     let mut window_context = window.context();
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
@@ -253,15 +264,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut fps_manager = FPSManager::new();
     let mut opt_keyboard = None;
     let rows_per_s = 100;
+    let waterfall_tex_height = 8000;
 
     fps_manager.set_framerate(50)?;
 
-    sequencer.play(0, Some(scale_1000), None);
+    sequencer.play(-3_000_000, Some(scale_1000), None);
     'running: loop {
-        let pos_us: i64 = sequencer.pos_us();
-
         let rec = canvas.viewport();
         let width = rec.width();
+        let waterfall_overlap = 2*width/nr_of_keys; // ensure even
+        let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
 
         if opt_keyboard.is_none() {
             trace!("Create Keyboard");
@@ -284,8 +296,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     .create_texture_target(texture_creator.default_pixel_format(),
                                             width, keyboard.height as u32)
                     .unwrap();
-                let result = canvas.with_texture_canvas(&mut texture, |texture_canvas| {
-                    draw_engine::draw_keyboard(keyboard,texture_canvas,pressed);
+                let result = canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                    draw_engine::draw_keyboard(keyboard,tex_canvas,pressed);
                 });
                 textures.push(texture);
             }
@@ -293,21 +305,28 @@ fn main() -> Result<(), Box<std::error::Error>> {
             // Texture 2.. are for waterfall.
             //
             let maxtime_us = show_events[show_events.len()-1].0;
-            let rows = (maxtime_us * rows_per_s + 999_999) / 1_000_000;
-            let nr_of_textures = (rows + 7_999)/8_000;
+            let rows = (maxtime_us * rows_per_s as u64+ 999_999) / 1_000_000;
+            let nr_of_textures = ((rows + waterfall_net_height as u64 - 1)
+                                    /waterfall_net_height as u64) as u32;
             trace!("Needed rows/textures: {}/{}",rows,nr_of_textures);
             for i in 0..nr_of_textures {
                 let mut texture = texture_creator
                     .create_texture_target(texture_creator.default_pixel_format(),
-                                            width, 8_000)
+                                            width, waterfall_tex_height)
                     .unwrap();
-                let result = canvas.with_texture_canvas(&mut texture, |texture_canvas| {
-                    draw_engine::draw_waterfall(keyboard,texture_canvas,i*8_000,8_000,rows_per_s,&show_events);
+                let result = canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                    draw_engine::draw_waterfall(keyboard,tex_canvas,i,
+                                i*waterfall_net_height, waterfall_net_height,
+                                waterfall_overlap,
+                                rows_per_s,&show_events);
                 });
                 textures.push(texture);
             }
             
         }
+
+        let pos_us: i64 = sequencer.pos_us();
+        trace!("pos_us={}",pos_us);
 
         // Clear canvas
         canvas.set_draw_color(sdl2::pixels::Color::RGB(100,100,100));
@@ -325,18 +344,29 @@ fn main() -> Result<(), Box<std::error::Error>> {
             canvas.copy(&textures[1], src_rec, dst_rec)?;
         }
 
-        let row = pos_us * rows_per_s as i64 / 1_000_000;
-        let t_i = row / 8000;
-        let row = row - t_i * 8000;
-        let src_rec = sdl2::rect::Rect::new(0,row as i32,
-                                            width,rec.height()-keyboard.height as u32-1);
-        let dst_rec = sdl2::rect::Rect::new(0,0,
-                                            width,rec.height()-keyboard.height as u32-1);
-        canvas.copy(&textures[2+t_i as usize], src_rec, dst_rec)?;
+        trace!("before draw_engine::copy_waterfall_to_screen");
+        if true {
+            draw_engine::copy_waterfall_to_screen(
+                &textures[2..],
+                &mut canvas,
+                rec.width(),
+                rec.height()-keyboard.height as u32,
+                waterfall_net_height,
+                waterfall_overlap,
+                rows_per_s,
+                pos_us);
+        }
+
+        trace!("before canvas present");
         canvas.present();
 
+        trace!("before Eventloop");
         for event in event_pump.poll_iter() {
+            trace!("event received: {:?}",event);
             match event {
+                Event::Window { win_event,.. } => {
+                    trace!("Window Event: {:?}",win_event);
+                }
                 Event::Quit { .. }
                 | Event::KeyDown {
                     keycode: Some(Keycode::Escape),
@@ -442,7 +472,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         // The rest of the game loop goes here...
-        fps_manager.delay();
+        trace!("before fps_manager");
+        let res = fps_manager.delay();
+        trace!("fps_manager -> {}",res);
     }
     sleep(Duration::from_millis(150));
     Ok(())
