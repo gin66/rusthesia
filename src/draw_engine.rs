@@ -238,7 +238,8 @@ pub fn copy_waterfall_to_screen(
         // There is an overlap of texture and canvas.
 
         let cp_height = (copy_row_bottom - copy_row_top + 1) as u32;
-        let y_dst = (tex_row_top - copy_row_top).max(0) as i32;
+        let y_shift = height as i64 - (tex_row_bottom-copy_row_top).min(height as i64);
+        let y_dst = (tex_row_top - copy_row_top).max(0) as i32 + y_shift as i32; // Need to add something
         let y_src = overlap as i32 + net_rows as i32 - cp_height as i32
                             - (copy_row_top - tex_row_top).max(0) as i32;
 
