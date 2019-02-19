@@ -28,7 +28,8 @@ pub fn usage() -> clap::ArgMatches<'static> {
                 .long("transpose")
                 .takes_value(true)
                 .default_value("0")
-                .help("Set number of note steps to transpose"),
+                .help(indoc!("Set number of note steps to transpose.
+                              For negative numbers use: -t=-12")),
         )
         .arg(
             Arg::with_name("play")
