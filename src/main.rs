@@ -23,6 +23,57 @@ mod draw_engine;
 mod scroller;
 mod usage;
 
+fn transposed_message(time_us: u64,trk: usize,channel: u8,
+                      message: &midly::MidiMessage,
+                      all: bool,
+                      shift_key: i8)
+                -> Option<(u64,usize,midi_sequencer::MidiEvent)> {
+    match (message,all) {
+        (midly::MidiMessage::NoteOn(key, pressure),_) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::NoteOn(0*channel, 
+                (key.as_int() as i16 + shift_key as i16).max(0).min(127) as u8,
+                pressure.as_int()),
+        )),
+        (midly::MidiMessage::NoteOff(key, pressure),_) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::NoteOff(0*channel,
+                (key.as_int() as i16 + shift_key as i16).max(0).min(127) as u8,
+                pressure.as_int()),
+        )),
+        (midly::MidiMessage::Aftertouch(key, pressure),true) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::Aftertouch(channel,
+                (key.as_int() as i16 + shift_key as i16).max(0).min(127) as u8,
+                pressure.as_int()),
+        )),
+        (midly::MidiMessage::Controller(control, value),true) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::Controller(channel, control.as_int(), value.as_int()),
+        )),
+        (midly::MidiMessage::ChannelAftertouch(pressure),true) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::ChannelAftertouch(channel, pressure.as_int()),
+        )),
+        (midly::MidiMessage::PitchBend(change),true) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::PitchBend(channel, change.as_int()),
+        )),
+        (midly::MidiMessage::ProgramChange(program),true) => Some((
+            time_us,
+            trk,
+            midi_sequencer::MidiEvent::ProgramChange(channel, program.as_int()),
+        )),
+        (_,false) => None,
+    }
+}
+
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
 
@@ -123,70 +174,23 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
 
     // Get all the events to show/play
-    let show_events = container
+    let mut show_events = container
         .iter()
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
-            midly::EventKind::Midi { channel, message } => match message {
-                midly::MidiMessage::NoteOn(key, pressure) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::NoteOn(channel.as_int(), key.as_int(), pressure.as_int()),
-                )),
-                midly::MidiMessage::NoteOff(key, pressure) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::NoteOff(channel.as_int(), key.as_int(), pressure.as_int()),
-                )),
-                _ => None
-            },
+            midly::EventKind::Midi { channel, message } => 
+                transposed_message(time_us,trk,channel.as_int(),message,false,shift_key),
             _ => None,
         })
         .collect::<Vec<_>>();
-    let play_events = container
+    let mut play_events = container
         .iter()
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
-            midly::EventKind::Midi { channel, message } => match message {
-                // TODO: CHANNEL HACK REMOVAL
-                midly::MidiMessage::NoteOn(key, pressure) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::NoteOn(0*channel.as_int(), key.as_int(), pressure.as_int()),
-                )),
-                midly::MidiMessage::NoteOff(key, pressure) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::NoteOff(0*channel.as_int(), key.as_int(), pressure.as_int()),
-                )),
-                midly::MidiMessage::Aftertouch(key, pressure) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::Aftertouch(channel.as_int(), key.as_int(), pressure.as_int()),
-                )),
-                midly::MidiMessage::Controller(control, value) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::Controller(channel.as_int(), control.as_int(), value.as_int()),
-                )),
-                midly::MidiMessage::ChannelAftertouch(pressure) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::ChannelAftertouch(channel.as_int(), pressure.as_int()),
-                )),
-                midly::MidiMessage::PitchBend(change) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::PitchBend(channel.as_int(), change.as_int()),
-                )),
-                midly::MidiMessage::ProgramChange(program) => Some((
-                    time_us,
-                    trk,
-                    midi_sequencer::MidiEvent::ProgramChange(channel.as_int(), program.as_int()),
-                ))
-            },
+            midly::EventKind::Midi { channel, message } => 
+                transposed_message(time_us,trk,channel.as_int(),message,true,shift_key),
             _ => None,
         })
         .inspect(|e| trace!("{:?}",e))
@@ -335,7 +339,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         trace!("pos_us={}",pos_us);
 
         // Clear canvas
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(100,100,100));
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(50,50,50));
         canvas.clear();
 
         // Copy keyboard with unpressed keys
@@ -450,15 +454,57 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         keycode: Some(Keycode::Left),
                         ..
                     } => {
-                        shift_key += 1;
-                        //opt_waterfall = None;
+                        shift_key -= 1;
+                        show_events = container
+                            .iter()
+                            .timed(&container.header().timing)
+                            .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
+                            .filter_map(|(time_us, trk, evt)| match evt {
+                                midly::EventKind::Midi { channel, message } => 
+                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>();
+                        play_events = container
+                            .iter()
+                            .timed(&container.header().timing)
+                            .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
+                            .filter_map(|(time_us, trk, evt)| match evt {
+                                midly::EventKind::Midi { channel, message } => 
+                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key),
+                                _ => None,
+                            })
+                            .inspect(|e| trace!("{:?}",e))
+                            .collect::<Vec<_>>();
+                        textures.clear();
                     }
                     Event::KeyDown {
                         keycode: Some(Keycode::Right),
                         ..
                     } => {
-                        shift_key -= 1;
-                        //opt_waterfall = None;
+                        shift_key += 1;
+                        show_events = container
+                            .iter()
+                            .timed(&container.header().timing)
+                            .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
+                            .filter_map(|(time_us, trk, evt)| match evt {
+                                midly::EventKind::Midi { channel, message } => 
+                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>();
+                        play_events = container
+                            .iter()
+                            .timed(&container.header().timing)
+                            .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
+                            .filter_map(|(time_us, trk, evt)| match evt {
+                                midly::EventKind::Midi { channel, message } => 
+                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key),
+                                _ => None,
+                            })
+                            .inspect(|e| trace!("{:?}",e))
+                            .collect::<Vec<_>>();
+                        textures.clear();
                     }
                     Event::MultiGesture {
                         timestamp: _timestamp,
