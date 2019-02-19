@@ -214,9 +214,6 @@ impl MidiSequencer {
     pub fn set_pos_us(&self, pos_us: i64) {
         self.control.send(MidiSequencerCommand::SetPosition(pos_us)).ok();
     }
-    pub fn pos_us(&self) -> i64 {
-        self.time_listener.get_pos_us()
-    }
     pub fn is_finished(&self) -> bool {
         self.control.send(MidiSequencerCommand::Ping).is_err()
     }

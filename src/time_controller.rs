@@ -48,6 +48,7 @@ impl RefPosition {
     pub fn start(&mut self) {
         self.at_instant = Some(Instant::now());
     }
+    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.at_instant.is_some()
     }

@@ -15,19 +15,12 @@ use sdl2::event::Event;
 
 use crate::time_controller::TimeListenerTrait;
 
+//mod app;
 mod time_controller;
 mod midi_container;
 mod midi_sequencer;
 mod draw_engine;
 mod usage;
-
-#[derive(Copy, Clone)]
-enum NoteState {
-    Pressed(usize),
-    Keep(usize),
-    Off,
-}
-
 
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
@@ -191,8 +184,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     time_us,
                     trk,
                     midi_sequencer::MidiEvent::ProgramChange(channel.as_int(), program.as_int()),
-                )),
-                _ => None
+                ))
             },
             _ => None,
         })
@@ -255,14 +247,13 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .build()
         .unwrap();
     println!("Display Mode: {:?}",window.display_mode());
-    let mut window_context = window.context();
+    //let window_context = window.context();
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
         .build()?;
-    let mut texture_creator = canvas.texture_creator();
+    let texture_creator = canvas.texture_creator();
     let mut textures: Vec<sdl2::render::Texture> = vec![];
 
-    let draw_engine = draw_engine::DrawEngine::init(video_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut paused = false;
@@ -304,9 +295,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     .create_texture_target(texture_creator.default_pixel_format(),
                                             width, keyboard.height as u32)
                     .unwrap();
-                let result = canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                    draw_engine::draw_keyboard(keyboard,tex_canvas,pressed);
-                });
+                canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                    draw_engine::draw_keyboard(keyboard,tex_canvas,pressed).ok();
+                })?;
                 textures.push(texture);
             }
 
@@ -322,12 +313,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     .create_texture_target(texture_creator.default_pixel_format(),
                                             width, waterfall_tex_height)
                     .unwrap();
-                let result = canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                canvas.with_texture_canvas(&mut texture, |tex_canvas| {
                     draw_engine::draw_waterfall(keyboard,tex_canvas,i,
                                 i*waterfall_net_height, waterfall_net_height,
                                 waterfall_overlap,
                                 rows_per_s,&show_events);
-                });
+                })?;
                 textures.push(texture);
             }
             
@@ -367,7 +358,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 waterfall_net_height,
                 waterfall_overlap,
                 rows_per_s,
-                pos_us);
+                pos_us)?;
         }
 
         trace!("before Eventloop");
@@ -468,11 +459,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         //opt_waterfall = None;
                     }
                     Event::MultiGesture {
-                        timestamp,
-                        touch_id,
-                        x,
-                        y,
-                        num_fingers,
+                        timestamp: _timestamp,
+                        touch_id: _touch_id,
+                        x: _x,
+                        y: _y,
+                        num_fingers: _num_fingers,
                         ..
                     } => {
                         //finger_msg = format!(
