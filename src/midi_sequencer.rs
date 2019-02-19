@@ -138,8 +138,8 @@ impl MidiSequencerThread {
                         Ok(MidiSequencerCommand::Stop) => {
                             self.time_control.stop();
                             for channel in 0..15 {
-                                let msg = [0x0b+channel, 123, 0]; // All Notes Off
-                                conn_out.send(&msg).unwrap();
+                                //let msg = [0x0b+channel, 123, 0]; // All Notes Off
+                                //conn_out.send(&msg).unwrap();
                             }
                             SequencerState::Stopped
                         },

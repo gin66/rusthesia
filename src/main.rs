@@ -263,7 +263,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut paused = false;
     let mut scale_1000 = 1000;
-    let mut opt_keyboard = None;
+    let mut opt_keyboard: Option<piano_keyboard::Keyboard2d> = None;
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
@@ -280,6 +280,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
         let waterfall_overlap = 2*width/nr_of_keys; // ensure even
         let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
 
+        if opt_keyboard.is_some() {
+            if opt_keyboard.as_ref().unwrap().width != width as u16 {
+                opt_keyboard = None;
+            }
+        }
         if opt_keyboard.is_none() {
             trace!("Create Keyboard");
             textures.clear();
@@ -455,6 +460,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         ..
                     } => {
                         shift_key -= 1;
+                        sequencer.stop();
                         show_events = container
                             .iter()
                             .timed(&container.header().timing)
@@ -477,12 +483,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .inspect(|e| trace!("{:?}",e))
                             .collect::<Vec<_>>();
                         textures.clear();
+                        sequencer.play(pos_us, None, Some(play_events));
                     }
                     Event::KeyDown {
                         keycode: Some(Keycode::Right),
                         ..
                     } => {
                         shift_key += 1;
+                        sequencer.stop();
                         show_events = container
                             .iter()
                             .timed(&container.header().timing)
@@ -505,6 +513,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .inspect(|e| trace!("{:?}",e))
                             .collect::<Vec<_>>();
                         textures.clear();
+                        sequencer.play(pos_us, None, Some(play_events));
                     }
                     Event::MultiGesture {
                         timestamp: _timestamp,
@@ -518,7 +527,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         //    "t={} id={} fid={} x={:.2} y={:.2}",
                         //    timestamp, touch_id, num_fingers, x, y
                         //);
-                        println!("Finger {} {}",y, num_fingers);
+                        trace!("Finger {} {}",y, num_fingers);
                         if num_fingers == 2 {
                             if !scroll.update_move(y, ms_per_frame) {
                                 sequencer.stop();

@@ -57,8 +57,8 @@ impl Scroller {
                 trace!("xUpdate move");
                 self.last_y = y;
                 self.time_ms += dt_ms;
-                let initialVelocity = (y - self.start_y)*1000.0/dt_ms as f32;
-                self.amplitude = initialVelocity * self.scale_factor;
+                let initial_velocity = (y - self.start_y)*1000.0/dt_ms as f32;
+                self.amplitude = initial_velocity * self.scale_factor;
                 (ScrollerState::Scrolling,true)
             },
         };
