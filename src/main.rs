@@ -20,6 +20,7 @@ mod time_controller;
 mod midi_container;
 mod midi_sequencer;
 mod draw_engine;
+mod scroller;
 mod usage;
 
 fn main() -> Result<(), Box<std::error::Error>> {
@@ -265,6 +266,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let base_time = Instant::now();
     let ms_per_frame = 40;
     let mut frame_cnt = 0;
+    let mut scroll = scroller::Scroller::new(5_000_000.0);
 
     let time_keeper = sequencer.get_new_listener();
     sequencer.play(-3_000_000, Some(scale_1000), None);
@@ -462,14 +464,46 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         timestamp: _timestamp,
                         touch_id: _touch_id,
                         x: _x,
-                        y: _y,
-                        num_fingers: _num_fingers,
+                        y,
+                        num_fingers,
                         ..
                     } => {
                         //finger_msg = format!(
                         //    "t={} id={} fid={} x={:.2} y={:.2}",
                         //    timestamp, touch_id, num_fingers, x, y
                         //);
+                        println!("Finger {} {}",y, num_fingers);
+                        if num_fingers == 2 {
+                            if !scroll.update_move(y, ms_per_frame) {
+                                sequencer.stop();
+                            }
+                        }
+                    }
+                    Event::FingerDown {
+                        timestamp: _timestamp,
+                        touch_id: _touch_id,
+                        finger_id: _finger_id,
+                        x: _x,
+                        y: _y,
+                        dx: _dx,
+                        dy: _dy,
+                        pressure: _pressure,
+                    } => {
+                        if scroll.stop() && !paused {
+                            sequencer.play(pos_us,None,None);
+                        }
+                    }
+                    Event::FingerUp {
+                        timestamp: _timestamp,
+                        touch_id: _touch_id,
+                        finger_id: _finger_id,
+                        x: _x,
+                        y: _y,
+                        dx: _dx,
+                        dy: _dy,
+                        pressure: _pressure,
+                    } => {
+                        scroll.end_move();
                     }
                     Event::FingerMotion {
                         timestamp: _timestamp,
@@ -492,6 +526,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 empty = true;
             }
         };
+
+        if let Some((is_end,delta)) = scroll.update_position(ms_per_frame) {
+            if is_end && !paused {
+                sequencer.play(pos_us + delta as i64,None,None);
+            }
+            else {
+                sequencer.set_pos_us(pos_us + delta as i64);
+            }
+        }
 
         trace!("before sleep {:?}",sleep_duration);
         std::thread::sleep(sleep_duration);
