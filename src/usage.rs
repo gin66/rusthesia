@@ -19,6 +19,9 @@ pub fn usage() -> clap::ArgMatches<'static> {
                     <->             Slower
                     <Space>         Pause/continue playing
 
+                Gestures:
+                    Two finger scrolling to move forward/backwards
+
                 For playing midi without output, leave out '-s' option
             "
         ))
