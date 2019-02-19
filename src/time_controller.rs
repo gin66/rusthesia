@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration,Instant};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub struct RefPosition {
@@ -18,6 +18,18 @@ impl RefPosition {
             None => self.pos_us,
             Some(instant) => {
                 let elapsed = instant.elapsed();
+                let mut elapsed_us = elapsed.subsec_micros() as i64;
+                elapsed_us += elapsed.as_secs() as i64 * 1_000_000;
+                let scaled_us =  elapsed_us * self.scaling_1000 as i64 / 1000;
+                self.pos_us + scaled_us
+            }
+        }
+    }
+    pub fn get_pos_us_after(&self, duration: Duration) -> i64 {
+        match self.at_instant.as_ref() {
+            None => self.pos_us,
+            Some(instant) => {
+                let elapsed = instant.elapsed() + duration;
                 let mut elapsed_us = elapsed.subsec_micros() as i64;
                 elapsed_us += elapsed.as_secs() as i64 * 1_000_000;
                 let scaled_us =  elapsed_us * self.scaling_1000 as i64 / 1000;
@@ -65,6 +77,9 @@ pub trait TimeListenerTrait {
     fn get_locked(&self) -> Option<MutexGuard<RefPosition>>;
     fn get_pos_us(&self) -> i64 {
         self.get_locked().unwrap().get_pos_us()
+    }
+    fn get_pos_us_after(&self, duration: Duration) -> i64 {
+        self.get_locked().unwrap().get_pos_us_after(duration)
     }
     fn is_running(&self) -> bool {
         self.get_locked().unwrap().is_running()

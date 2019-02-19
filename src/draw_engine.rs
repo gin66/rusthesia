@@ -245,7 +245,7 @@ pub fn copy_waterfall_to_screen(
 
         let src_rec = sdl2::rect::Rect::new(0,y_src,width,cp_height);
         let dst_rec = sdl2::rect::Rect::new(0,y_dst,width,cp_height);
-        println!("Copy {:?}->{:?}",src_rec,dst_rec);
+        trace!("Copy {:?}->{:?}",src_rec,dst_rec);
         canvas.copy(&texture, src_rec, dst_rec)?;
     }
     Ok(())
@@ -280,7 +280,7 @@ impl DrawEngine {
         } else {
             None
         };
-        println!("Have font={:?}", opt_font.is_some());
+        info!("Have font={:?}", opt_font.is_some());
 
         Ok(DrawEngine {
         })
@@ -387,7 +387,7 @@ impl DrawEngine {
             if opt_waterfall.is_none() {
                 let width = rec.width();
                 let height = (rec.height() * maxtime / 5_000).min(16384);
-                println!(
+                info!(
                     "Waterfall size: {}x{}   maxtime = {}  height={}",
                     width,
                     height,

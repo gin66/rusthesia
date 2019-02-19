@@ -13,6 +13,8 @@ use clap::{value_t, values_t};
 use sdl2::keyboard::Keycode;
 use sdl2::event::Event;
 
+use crate::time_controller::TimeListenerTrait;
+
 mod time_controller;
 mod midi_container;
 mod midi_sequencer;
@@ -34,7 +36,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
     simple_logging::log_to_stderr(if debug {
         LevelFilter::Trace
     } else {
-        LevelFilter::Error
+        if matches.is_present("verbose") {
+            LevelFilter::Warn
+        }
+        else {
+            LevelFilter::Error
+        }
     });
 
     let mut shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
@@ -265,8 +272,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let waterfall_tex_height = 1000;
 
     let base_time = Instant::now();
-    let ms_per_frame = 20;
+    let ms_per_frame = 40;
+    let mut frame_cnt = 0;
 
+    let time_keeper = sequencer.get_new_listener();
     sequencer.play(-3_000_000, Some(scale_1000), None);
     'running: loop {
         let rec = canvas.viewport();
@@ -324,7 +333,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
             
         }
 
-        let pos_us: i64 = sequencer.pos_us();
+
+        let elapsed = base_time.elapsed();
+        let elapsed_us = elapsed.subsec_micros();
+        let rem_us = ms_per_frame * 1_000 - elapsed_us % (ms_per_frame * 1_000);
+        let rem_dur =  Duration::new(0, rem_us*1_000);
+        let pos_us: i64 = time_keeper.get_pos_us_after(rem_dur);
         trace!("pos_us={}",pos_us);
 
         // Clear canvas
@@ -356,18 +370,21 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 pos_us);
         }
 
-        trace!("before canvas present");
-        canvas.present();
-
         trace!("before Eventloop");
         //for event in event_pump.poll_iter() {
         let mut empty = false;
         let sleep_duration = loop {
             let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros();
-            let rem_us = ms_per_frame * 1_000 - elapsed_us % (ms_per_frame * 1_000);
+            let elapsed_us = elapsed.subsec_micros() as u64
+                                + elapsed.as_secs()*1_000_000;
+            let next_frame_cnt = elapsed_us / (ms_per_frame as u64 * 1_000) + 1;
+            if next_frame_cnt > frame_cnt+1 {
+                warn!("FRAME LOST curr={} next={}", frame_cnt, next_frame_cnt);
+            }
+            frame_cnt = next_frame_cnt;
+            let rem_us = ms_per_frame as u64* 1_000 - elapsed_us % (ms_per_frame as u64* 1_000);
             if empty || rem_us < 5_000 {
-                break Duration::new(0, rem_us*1_000);
+                break Duration::new(0, rem_us as u32*1_000);
             }
 
             if let Some(event) = event_pump.wait_event_timeout(1) {
@@ -487,6 +504,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
         trace!("before sleep {:?}",sleep_duration);
         std::thread::sleep(sleep_duration);
+
+        trace!("before canvas present");
+        canvas.present();
     }
     sleep(Duration::from_millis(150));
     Ok(())
