@@ -416,7 +416,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 break Duration::new(0, rem_us as u32*1_000);
             }
 
-            if let Some(event) = event_pump.wait_event_timeout(1) {
+            if let Some(event) = event_pump.poll_event() {
                 trace!("event received: {:?}",event);
                 match event {
                     Event::Window { win_event,.. } => {
