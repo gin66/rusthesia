@@ -272,7 +272,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
 
     if show_tracks.len() == 0 {
-        sequencer.play(0, Some(1000), None);
+        sequencer.play(0);
         loop {
             sleep(Duration::from_millis(1000));
             if sequencer.is_finished() {
@@ -335,7 +335,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut scroll = scroller::Scroller::new(5_000_000.0);
 
     let time_keeper = sequencer.get_new_listener();
-    sequencer.play(-3_000_000, Some(scale_1000), None);
+    sequencer.play(-3_000_000);
     'running: loop {
         let rec = canvas.viewport();
         let width = rec.width();
@@ -490,7 +490,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         if paused {
                             sequencer.stop();
                         } else {
-                            sequencer.play(pos_us, None, None);
+                            sequencer.play(pos_us);
                         }
                     }
                     Event::KeyDown {
@@ -515,7 +515,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         if paused {
                             sequencer.set_pos_us(pos_us);
                         } else {
-                            sequencer.play(pos_us, None, None);
+                            sequencer.play(pos_us);
                         }
                     }
                     Event::KeyDown {
@@ -530,7 +530,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         if paused {
                             sequencer.set_pos_us(pos_us);
                         } else {
-                            sequencer.play(pos_us, None, None);
+                            sequencer.play(pos_us);
                         }
                     }
                     Event::KeyDown {
@@ -577,7 +577,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .inspect(|e| trace!("{:?}", e))
                             .collect::<Vec<_>>();
                         textures.clear();
-                        sequencer.play(pos_us, None, Some(play_events));
+                        sequencer.set_midi_data(play_events);
+                        sequencer.play(pos_us);
                     }
                     Event::KeyDown {
                         keycode: Some(Keycode::Right),
@@ -623,7 +624,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .inspect(|e| trace!("{:?}", e))
                             .collect::<Vec<_>>();
                         textures.clear();
-                        sequencer.play(pos_us, None, Some(play_events));
+                        sequencer.set_midi_data(play_events);
+                        sequencer.play(pos_us);
                     }
                     Event::MultiGesture {
                         timestamp: _timestamp,
@@ -655,7 +657,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         pressure: _pressure,
                     } => {
                         if scroll.stop() && !paused {
-                            sequencer.play(pos_us, None, None);
+                            sequencer.play(pos_us);
                         }
                     }
                     Event::FingerUp {
@@ -693,7 +695,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
         if let Some((is_end, delta)) = scroll.update_position(ms_per_frame) {
             if is_end && !paused {
-                sequencer.play(pos_us + delta as i64, None, None);
+                sequencer.play(pos_us + delta as i64);
             } else {
                 sequencer.set_pos_us(pos_us + delta as i64);
             }

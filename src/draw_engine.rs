@@ -190,7 +190,7 @@ pub fn draw_waterfall(
                     let end_row = end.min(top_row);
                     trace!("{} {}", start_row, end_row);
                     let height = end_row - start_row + 1;
-                    let tex_y = bottom_row + net_rows + overlap - 1 - end_row; // flip
+                    let tex_y = top_row - end_row; // flip
 
                     let mut rec = rect_templates[i].clone();
                     rec.set_y(tex_y as i32);

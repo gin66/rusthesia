@@ -40,7 +40,8 @@ pub type RawMidiTuple = (u64, usize, MidiEvent);
 enum MidiSequencerCommand {
     Ping,
     SetPosition(i64),
-    Play(i64, Option<u16>, Option<Vec<RawMidiTuple>>),
+    SetEvents(Vec<RawMidiTuple>),
+    Play(i64),
     Scale(u16),
     Stop,
 }
@@ -48,7 +49,7 @@ enum MidiSequencerCommand {
 enum SequencerState {
     Stopped,
     Playing,
-    StartPlaying(i64, Option<u16>, Option<Vec<RawMidiTuple>>),
+    StartPlaying(i64),
 }
 
 struct MidiSequencerThread {
@@ -83,8 +84,8 @@ impl MidiSequencerThread {
                 SequencerState::Stopped => match self.control.recv() {
                     Err(mpsc::RecvError) => break,
                     Ok(MidiSequencerCommand::Ping) => SequencerState::Stopped,
-                    Ok(MidiSequencerCommand::Play(pos_us, opt_scaling, opt_events)) => {
-                        SequencerState::StartPlaying(pos_us, opt_scaling, opt_events)
+                    Ok(MidiSequencerCommand::Play(pos_us)) => {
+                        SequencerState::StartPlaying(pos_us)
                     }
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {
                         self.time_control.set_scaling_1000(new_scaling);
@@ -94,6 +95,10 @@ impl MidiSequencerThread {
                         self.time_control.set_pos_us(pos_us);
                         SequencerState::Stopped
                     }
+                    Ok(MidiSequencerCommand::SetEvents(events)) => {
+                        self.events = events;
+                        SequencerState::Stopped
+                    }
                     Ok(MidiSequencerCommand::Stop) => SequencerState::Stopped,
                 },
                 SequencerState::Playing => {
@@ -101,15 +106,19 @@ impl MidiSequencerThread {
                         Err(mpsc::TryRecvError::Disconnected) => break,
                         Err(mpsc::TryRecvError::Empty) => SequencerState::Playing,
                         Ok(MidiSequencerCommand::Ping) => SequencerState::Playing,
-                        Ok(MidiSequencerCommand::Play(pos_us, opt_scaling, opt_events)) => {
-                            SequencerState::StartPlaying(pos_us, opt_scaling, opt_events)
+                        Ok(MidiSequencerCommand::Play(pos_us)) => {
+                            SequencerState::StartPlaying(pos_us)
                         }
                         Ok(MidiSequencerCommand::Scale(new_scaling)) => {
                             self.time_control.set_scaling_1000(new_scaling);
                             SequencerState::Playing
                         }
                         Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
-                            SequencerState::StartPlaying(pos_us, None, None)
+                            SequencerState::StartPlaying(pos_us)
+                        }
+                        Ok(MidiSequencerCommand::SetEvents(events)) => {
+                            self.events = events;
+                            SequencerState::StartPlaying(0)
                         }
                         Ok(MidiSequencerCommand::Stop) => {
                             self.time_control.stop();
@@ -121,20 +130,16 @@ impl MidiSequencerThread {
                         }
                     }
                 }
-                SequencerState::StartPlaying(_, _, _) => {
+                SequencerState::StartPlaying(_) => {
                     panic!("StartPlaying should not be reachable here")
                 }
             };
 
             state = match state {
                 SequencerState::Stopped => SequencerState::Stopped,
-                SequencerState::StartPlaying(pos_us, opt_scaling, opt_events) => {
+                SequencerState::StartPlaying(pos_us) => {
                     idx = 0;
                     self.time_control.set_pos_us(pos_us as i64);
-                    opt_scaling.map(|scale| self.time_control.set_scaling_1000(scale));
-                    if let Some(events) = opt_events {
-                        self.events = events;
-                    }
                     while pos_us >= self.events[idx].0 as i64 {
                         idx += 1;
                         if idx >= self.events.len() {
@@ -200,9 +205,14 @@ impl MidiSequencer {
     pub fn is_finished(&self) -> bool {
         self.control.send(MidiSequencerCommand::Ping).is_err()
     }
-    pub fn play(&self, pos_us: i64, opt_scale: Option<u16>, opt_events: Option<Vec<RawMidiTuple>>) {
+    pub fn set_midi_data(&self, events: Vec<RawMidiTuple>) {
         self.control
-            .send(MidiSequencerCommand::Play(pos_us, opt_scale, opt_events))
+            .send(MidiSequencerCommand::SetEvents(events))
+            .ok();
+    }
+    pub fn play(&self, pos_us: i64) {
+        self.control
+            .send(MidiSequencerCommand::Play(pos_us))
             .ok();
     }
     pub fn set_scaling_1000(&self, new_scale: u16) {
