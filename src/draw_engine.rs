@@ -152,7 +152,8 @@ pub fn draw_waterfall(keyboard: &piano_keyboard::Keyboard2d,
             }
             match (opt_start,opt_end) {
                 (Some(start),Some(end)) => {
-                    if start > bottom_row+net_rows+overlap {
+                    let top_row = bottom_row + net_rows + overlap - 1;
+                    if start > top_row {
                         continue;
                     }
                     if end <= bottom_row {
@@ -160,7 +161,7 @@ pub fn draw_waterfall(keyboard: &piano_keyboard::Keyboard2d,
                     }
                     trace!("start/end = {}/{}",start,end);
                     let start_row = start.max(bottom_row);
-                    let end_row = end.min(bottom_row+net_rows+overlap-1);
+                    let end_row = end.min(top_row);
                     trace!("{} {}",start_row,end_row);
                     let height = end_row - start_row + 1;
                     let tex_y = bottom_row+net_rows+overlap-1 - end_row; // flip
