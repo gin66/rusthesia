@@ -26,30 +26,56 @@ mod usage;
 fn transposed_message(time_us: u64,trk: usize,channel: u8,
                       message: &midly::MidiMessage,
                       all: bool,
-                      shift_key: i8)
+                      shift_key: i8,
+                      left_key: u8,
+                      right_key: u8)
                 -> Option<(u64,usize,midi_sequencer::MidiEvent)> {
     match (message,all) {
-        (midly::MidiMessage::NoteOn(key, pressure),_) => Some((
-            time_us,
-            trk,
-            midi_sequencer::MidiEvent::NoteOn(0*channel, 
-                (key.as_int() as i16 + shift_key as i16).max(0).min(127) as u8,
-                pressure.as_int()),
-        )),
-        (midly::MidiMessage::NoteOff(key, pressure),_) => Some((
-            time_us,
-            trk,
-            midi_sequencer::MidiEvent::NoteOff(0*channel,
-                (key.as_int() as i16 + shift_key as i16).max(0).min(127) as u8,
-                pressure.as_int()),
-        )),
-        (midly::MidiMessage::Aftertouch(key, pressure),true) => Some((
-            time_us,
-            trk,
-            midi_sequencer::MidiEvent::Aftertouch(channel,
-                (key.as_int() as i16 + shift_key as i16).max(0).min(127) as u8,
-                pressure.as_int()),
-        )),
+        (midly::MidiMessage::NoteOn(key, pressure),_) => {
+            let shifted_key = key.as_int() as i16 + shift_key as i16;
+            if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
+                None
+            }
+            else {
+                Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::NoteOn(0*channel, 
+                        shifted_key as u8,
+                        pressure.as_int()),
+                ))
+            }
+        },
+        (midly::MidiMessage::NoteOff(key, pressure),_) => {
+            let shifted_key = key.as_int() as i16 + shift_key as i16;
+            if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
+                None
+            }
+            else {
+                Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::NoteOff(0*channel, 
+                        shifted_key as u8,
+                        pressure.as_int()),
+                ))
+            }
+        },
+        (midly::MidiMessage::Aftertouch(key, pressure),true) => {
+            let shifted_key = key.as_int() as i16 + shift_key as i16;
+            if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
+                None
+            }
+            else {
+                Some((
+                    time_us,
+                    trk,
+                    midi_sequencer::MidiEvent::Aftertouch(0*channel, 
+                        shifted_key as u8,
+                        pressure.as_int()),
+                ))
+            }
+        },
         (midly::MidiMessage::Controller(control, value),true) => Some((
             time_us,
             trk,
@@ -93,7 +119,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
     let rd64 = matches.is_present("RD64");
-    let (left_key, right_key) = if rd64 {
+    let (left_key, right_key): (u8,u8) = if rd64 {
         // RD-64 is A1 to C7
         (21 + 12, 108 - 12)
     } else {
@@ -180,7 +206,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
             midly::EventKind::Midi { channel, message } => 
-                transposed_message(time_us,trk,channel.as_int(),message,false,shift_key),
+                transposed_message(time_us,trk,channel.as_int(),message,false,shift_key,left_key,right_key),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -190,7 +216,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
             midly::EventKind::Midi { channel, message } => 
-                transposed_message(time_us,trk,channel.as_int(),message,true,shift_key),
+                transposed_message(time_us,trk,channel.as_int(),message,true,shift_key,left_key,right_key),
             _ => None,
         })
         .inspect(|e| trace!("{:?}",e))
@@ -277,7 +303,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     'running: loop {
         let rec = canvas.viewport();
         let width = rec.width();
-        let waterfall_overlap = 2*width/nr_of_keys; // ensure even
+        let waterfall_overlap = 2*width/nr_of_keys as u32; // ensure even
         let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
 
         if opt_keyboard.is_some() {
@@ -291,6 +317,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             opt_keyboard = Some(piano_keyboard::KeyboardBuilder::new()
                                 .set_width(rec.width() as u16)?
                                 .white_black_gap_present(true)
+                                .set_most_left_right_white_keys(left_key, right_key)?
                                 .build2d());
         }
         let keyboard = opt_keyboard.as_ref().unwrap();
@@ -467,7 +494,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
                                 midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key),
+                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key,left_key,right_key),
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
@@ -477,7 +504,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
                                 midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key),
+                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key,left_key,right_key),
                                 _ => None,
                             })
                             .inspect(|e| trace!("{:?}",e))
@@ -497,7 +524,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
                                 midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key),
+                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key,left_key,right_key),
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
@@ -507,7 +534,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
                                 midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key),
+                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key,left_key,right_key),
                                 _ => None,
                             })
                             .inspect(|e| trace!("{:?}",e))
