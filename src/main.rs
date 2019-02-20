@@ -1,6 +1,6 @@
 use std::io::{stdin, stdout, Write};
 use std::thread::sleep;
-use std::time::{Instant,Duration};
+use std::time::{Duration, Instant};
 
 use log::*;
 use simple_logging;
@@ -10,93 +10,99 @@ use midly;
 
 use clap::{value_t, values_t};
 
-use sdl2::keyboard::Keycode;
 use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
 
 use crate::time_controller::TimeListenerTrait;
 
 //mod app;
-mod time_controller;
+mod draw_engine;
 mod midi_container;
 mod midi_sequencer;
-mod draw_engine;
 mod scroller;
+mod time_controller;
 mod usage;
 
-fn transposed_message(time_us: u64,trk: usize,channel: u8,
-                      message: &midly::MidiMessage,
-                      all: bool,
-                      shift_key: i8,
-                      left_key: u8,
-                      right_key: u8)
-                -> Option<(u64,usize,midi_sequencer::MidiEvent)> {
-    match (message,all) {
-        (midly::MidiMessage::NoteOn(key, pressure),_) => {
+fn transposed_message(
+    time_us: u64,
+    trk: usize,
+    channel: u8,
+    message: &midly::MidiMessage,
+    all: bool,
+    shift_key: i8,
+    left_key: u8,
+    right_key: u8,
+) -> Option<(u64, usize, midi_sequencer::MidiEvent)> {
+    match (message, all) {
+        (midly::MidiMessage::NoteOn(key, pressure), _) => {
             let shifted_key = key.as_int() as i16 + shift_key as i16;
             if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
                 None
-            }
-            else {
+            } else {
                 Some((
                     time_us,
                     trk,
-                    midi_sequencer::MidiEvent::NoteOn(0*channel, 
+                    midi_sequencer::MidiEvent::NoteOn(
+                        0 * channel,
                         shifted_key as u8,
-                        pressure.as_int()),
+                        pressure.as_int(),
+                    ),
                 ))
             }
-        },
-        (midly::MidiMessage::NoteOff(key, pressure),_) => {
+        }
+        (midly::MidiMessage::NoteOff(key, pressure), _) => {
             let shifted_key = key.as_int() as i16 + shift_key as i16;
             if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
                 None
-            }
-            else {
+            } else {
                 Some((
                     time_us,
                     trk,
-                    midi_sequencer::MidiEvent::NoteOff(0*channel, 
+                    midi_sequencer::MidiEvent::NoteOff(
+                        0 * channel,
                         shifted_key as u8,
-                        pressure.as_int()),
+                        pressure.as_int(),
+                    ),
                 ))
             }
-        },
-        (midly::MidiMessage::Aftertouch(key, pressure),true) => {
+        }
+        (midly::MidiMessage::Aftertouch(key, pressure), true) => {
             let shifted_key = key.as_int() as i16 + shift_key as i16;
             if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
                 None
-            }
-            else {
+            } else {
                 Some((
                     time_us,
                     trk,
-                    midi_sequencer::MidiEvent::Aftertouch(0*channel, 
+                    midi_sequencer::MidiEvent::Aftertouch(
+                        0 * channel,
                         shifted_key as u8,
-                        pressure.as_int()),
+                        pressure.as_int(),
+                    ),
                 ))
             }
-        },
-        (midly::MidiMessage::Controller(control, value),true) => Some((
+        }
+        (midly::MidiMessage::Controller(control, value), true) => Some((
             time_us,
             trk,
             midi_sequencer::MidiEvent::Controller(channel, control.as_int(), value.as_int()),
         )),
-        (midly::MidiMessage::ChannelAftertouch(pressure),true) => Some((
+        (midly::MidiMessage::ChannelAftertouch(pressure), true) => Some((
             time_us,
             trk,
             midi_sequencer::MidiEvent::ChannelAftertouch(channel, pressure.as_int()),
         )),
-        (midly::MidiMessage::PitchBend(change),true) => Some((
+        (midly::MidiMessage::PitchBend(change), true) => Some((
             time_us,
             trk,
             midi_sequencer::MidiEvent::PitchBend(channel, change.as_int()),
         )),
-        (midly::MidiMessage::ProgramChange(program),true) => Some((
+        (midly::MidiMessage::ProgramChange(program), true) => Some((
             time_us,
             trk,
             midi_sequencer::MidiEvent::ProgramChange(channel, program.as_int()),
         )),
-        (_,false) => None,
+        (_, false) => None,
     }
 }
 
@@ -109,8 +115,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     } else {
         if matches.is_present("verbose") {
             LevelFilter::Warn
-        }
-        else {
+        } else {
             LevelFilter::Error
         }
     });
@@ -119,7 +124,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
     let rd64 = matches.is_present("RD64");
-    let (left_key, right_key): (u8,u8) = if rd64 {
+    let (left_key, right_key): (u8, u8) = if rd64 {
         // RD-64 is A1 to C7
         (21 + 12, 108 - 12)
     } else {
@@ -205,8 +210,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
-            midly::EventKind::Midi { channel, message } => 
-                transposed_message(time_us,trk,channel.as_int(),message,false,shift_key,left_key,right_key),
+            midly::EventKind::Midi { channel, message } => transposed_message(
+                time_us,
+                trk,
+                channel.as_int(),
+                message,
+                false,
+                shift_key,
+                left_key,
+                right_key,
+            ),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -215,11 +228,19 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .timed(&container.header().timing)
         .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
         .filter_map(|(time_us, trk, evt)| match evt {
-            midly::EventKind::Midi { channel, message } => 
-                transposed_message(time_us,trk,channel.as_int(),message,true,shift_key,left_key,right_key),
+            midly::EventKind::Midi { channel, message } => transposed_message(
+                time_us,
+                trk,
+                channel.as_int(),
+                message,
+                true,
+                shift_key,
+                left_key,
+                right_key,
+            ),
             _ => None,
         })
-        .inspect(|e| trace!("{:?}",e))
+        .inspect(|e| trace!("{:?}", e))
         .collect::<Vec<_>>();
 
     trace!("output");
@@ -263,13 +284,28 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    println!("display driver: {:?}",video_subsystem.current_video_driver());
-    println!("dpi: {:?}",video_subsystem.display_dpi(0));
-    println!("Screensaver: {:?}",video_subsystem.is_screen_saver_enabled());
+    println!(
+        "display driver: {:?}",
+        video_subsystem.current_video_driver()
+    );
+    println!("dpi: {:?}", video_subsystem.display_dpi(0));
+    println!(
+        "Screensaver: {:?}",
+        video_subsystem.is_screen_saver_enabled()
+    );
 
-    println!("Swap interval: {:?}",video_subsystem.gl_get_swap_interval());
-    println!("{:?}",video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::VSync));
-    println!("Swap interval: {:?}",video_subsystem.gl_get_swap_interval());
+    println!(
+        "Swap interval: {:?}",
+        video_subsystem.gl_get_swap_interval()
+    );
+    println!(
+        "{:?}",
+        video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::VSync)
+    );
+    println!(
+        "Swap interval: {:?}",
+        video_subsystem.gl_get_swap_interval()
+    );
 
     let window = video_subsystem
         .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
@@ -277,7 +313,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .resizable()
         .build()
         .unwrap();
-    println!("Display Mode: {:?}",window.display_mode());
+    println!("Display Mode: {:?}", window.display_mode());
     //let window_context = window.context();
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
@@ -303,7 +339,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     'running: loop {
         let rec = canvas.viewport();
         let width = rec.width();
-        let waterfall_overlap = 2*width/nr_of_keys as u32; // ensure even
+        let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
         let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
 
         if opt_keyboard.is_some() {
@@ -314,11 +350,13 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if opt_keyboard.is_none() {
             trace!("Create Keyboard");
             textures.clear();
-            opt_keyboard = Some(piano_keyboard::KeyboardBuilder::new()
-                                .set_width(rec.width() as u16)?
-                                .white_black_gap_present(true)
-                                .set_most_left_right_white_keys(left_key, right_key)?
-                                .build2d());
+            opt_keyboard = Some(
+                piano_keyboard::KeyboardBuilder::new()
+                    .set_width(rec.width() as u16)?
+                    .white_black_gap_present(true)
+                    .set_most_left_right_white_keys(left_key, right_key)?
+                    .build2d(),
+            );
         }
         let keyboard = opt_keyboard.as_ref().unwrap();
         if width != keyboard.width as u32 {
@@ -328,61 +366,78 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if textures.len() == 0 {
             trace!("Create keyboard textures");
             // Texture 0 are for unpressed and 1 for pressed keys
-            for pressed in vec![false,true].drain(..) {
+            for pressed in vec![false, true].drain(..) {
                 let mut texture = texture_creator
-                    .create_texture_target(texture_creator.default_pixel_format(),
-                                            width, keyboard.height as u32)
+                    .create_texture_target(
+                        texture_creator.default_pixel_format(),
+                        width,
+                        keyboard.height as u32,
+                    )
                     .unwrap();
                 canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                    draw_engine::draw_keyboard(keyboard,tex_canvas,pressed).ok();
+                    draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
                 })?;
                 textures.push(texture);
             }
 
             // Texture 2.. are for waterfall.
             //
-            let maxtime_us = show_events[show_events.len()-1].0;
-            let rows = (maxtime_us * rows_per_s as u64+ 999_999) / 1_000_000;
-            let nr_of_textures = ((rows + waterfall_net_height as u64 - 1)
-                                    /waterfall_net_height as u64) as u32;
-            trace!("Needed rows/textures: {}/{}",rows,nr_of_textures);
+            let maxtime_us = show_events[show_events.len() - 1].0;
+            let rows = (maxtime_us * rows_per_s as u64 + 999_999) / 1_000_000;
+            let nr_of_textures =
+                ((rows + waterfall_net_height as u64 - 1) / waterfall_net_height as u64) as u32;
+            trace!("Needed rows/textures: {}/{}", rows, nr_of_textures);
             for i in 0..nr_of_textures {
                 let mut texture = texture_creator
-                    .create_texture_target(texture_creator.default_pixel_format(),
-                                            width, waterfall_tex_height)
+                    .create_texture_target(
+                        texture_creator.default_pixel_format(),
+                        width,
+                        waterfall_tex_height,
+                    )
                     .unwrap();
                 canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                    draw_engine::draw_waterfall(keyboard,tex_canvas,i,
-                                i*waterfall_net_height, waterfall_net_height,
-                                waterfall_overlap,
-                                rows_per_s,&show_events);
+                    draw_engine::draw_waterfall(
+                        keyboard,
+                        tex_canvas,
+                        i,
+                        i * waterfall_net_height,
+                        waterfall_net_height,
+                        waterfall_overlap,
+                        rows_per_s,
+                        &show_events,
+                    );
                 })?;
                 textures.push(texture);
             }
-            
         }
-
 
         let elapsed = base_time.elapsed();
         let elapsed_us = elapsed.subsec_micros();
         let rem_us = ms_per_frame * 1_000 - elapsed_us % (ms_per_frame * 1_000);
-        let rem_dur =  Duration::new(0, rem_us*1_000);
+        let rem_dur = Duration::new(0, rem_us * 1_000);
         let pos_us: i64 = time_keeper.get_pos_us_after(rem_dur);
-        trace!("pos_us={}",pos_us);
+        trace!("pos_us={}", pos_us);
 
         // Clear canvas
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(50,50,50));
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
         canvas.clear();
 
         // Copy keyboard with unpressed keys
-        let dst_rec = sdl2::rect::Rect::new(0,(rec.height()-keyboard.height as u32-1) as i32,
-                                            width,keyboard.height as u32);
+        let dst_rec = sdl2::rect::Rect::new(
+            0,
+            (rec.height() - keyboard.height as u32 - 1) as i32,
+            width,
+            keyboard.height as u32,
+        );
         canvas.copy(&textures[0], None, dst_rec)?;
 
-        let pressed_rectangles = draw_engine::get_pressed_key_rectangles(&keyboard,
-                                            rec.height()-keyboard.height as u32 - 1,
-                                            pos_us, &show_events);
-        for (src_rec,dst_rec) in pressed_rectangles.into_iter() {
+        let pressed_rectangles = draw_engine::get_pressed_key_rectangles(
+            &keyboard,
+            rec.height() - keyboard.height as u32 - 1,
+            pos_us,
+            &show_events,
+        );
+        for (src_rec, dst_rec) in pressed_rectangles.into_iter() {
             canvas.copy(&textures[1], src_rec, dst_rec)?;
         }
 
@@ -392,11 +447,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 &textures[2..],
                 &mut canvas,
                 rec.width(),
-                rec.height()-keyboard.height as u32,
+                rec.height() - keyboard.height as u32,
                 waterfall_net_height,
                 waterfall_overlap,
                 rows_per_s,
-                pos_us)?;
+                pos_us,
+            )?;
         }
 
         trace!("before Eventloop");
@@ -404,23 +460,22 @@ fn main() -> Result<(), Box<std::error::Error>> {
         let mut empty = false;
         let sleep_duration = loop {
             let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros() as u64
-                                + elapsed.as_secs()*1_000_000;
+            let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
             let next_frame_cnt = elapsed_us / (ms_per_frame as u64 * 1_000) + 1;
-            if next_frame_cnt > frame_cnt+1 {
+            if next_frame_cnt > frame_cnt + 1 {
                 warn!("FRAME LOST curr={} next={}", frame_cnt, next_frame_cnt);
             }
             frame_cnt = next_frame_cnt;
-            let rem_us = ms_per_frame as u64* 1_000 - elapsed_us % (ms_per_frame as u64* 1_000);
+            let rem_us = ms_per_frame as u64 * 1_000 - elapsed_us % (ms_per_frame as u64 * 1_000);
             if empty || rem_us < 5_000 {
-                break Duration::new(0, rem_us as u32*1_000);
+                break Duration::new(0, rem_us as u32 * 1_000);
             }
 
             if let Some(event) = event_pump.poll_event() {
-                trace!("event received: {:?}",event);
+                trace!("event received: {:?}", event);
                 match event {
-                    Event::Window { win_event,.. } => {
-                        trace!("Window Event: {:?}",win_event);
+                    Event::Window { win_event, .. } => {
+                        trace!("Window Event: {:?}", win_event);
                     }
                     Event::Quit { .. }
                     | Event::KeyDown {
@@ -434,8 +489,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         paused = !paused;
                         if paused {
                             sequencer.stop();
-                        }
-                        else {
+                        } else {
                             sequencer.play(pos_us, None, None);
                         }
                     }
@@ -460,8 +514,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         let pos_us = pos_us + 5_000_000;
                         if paused {
                             sequencer.set_pos_us(pos_us);
-                        }
-                        else {
+                        } else {
                             sequencer.play(pos_us, None, None);
                         }
                     }
@@ -471,14 +524,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     } => {
                         let pos_us = if pos_us > 5_000_000 {
                             pos_us - 5_000_000
-                        }
-                        else {
+                        } else {
                             0
                         };
                         if paused {
                             sequencer.set_pos_us(pos_us);
-                        }
-                        else {
+                        } else {
                             sequencer.play(pos_us, None, None);
                         }
                     }
@@ -493,8 +544,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .timed(&container.header().timing)
                             .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
-                                midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key,left_key,right_key),
+                                midly::EventKind::Midi { channel, message } => transposed_message(
+                                    time_us,
+                                    trk,
+                                    channel.as_int(),
+                                    message,
+                                    false,
+                                    shift_key,
+                                    left_key,
+                                    right_key,
+                                ),
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
@@ -503,11 +562,19 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .timed(&container.header().timing)
                             .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
-                                midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key,left_key,right_key),
+                                midly::EventKind::Midi { channel, message } => transposed_message(
+                                    time_us,
+                                    trk,
+                                    channel.as_int(),
+                                    message,
+                                    true,
+                                    shift_key,
+                                    left_key,
+                                    right_key,
+                                ),
                                 _ => None,
                             })
-                            .inspect(|e| trace!("{:?}",e))
+                            .inspect(|e| trace!("{:?}", e))
                             .collect::<Vec<_>>();
                         textures.clear();
                         sequencer.play(pos_us, None, Some(play_events));
@@ -523,8 +590,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .timed(&container.header().timing)
                             .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
-                                midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,false,shift_key,left_key,right_key),
+                                midly::EventKind::Midi { channel, message } => transposed_message(
+                                    time_us,
+                                    trk,
+                                    channel.as_int(),
+                                    message,
+                                    false,
+                                    shift_key,
+                                    left_key,
+                                    right_key,
+                                ),
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
@@ -533,11 +608,19 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             .timed(&container.header().timing)
                             .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
                             .filter_map(|(time_us, trk, evt)| match evt {
-                                midly::EventKind::Midi { channel, message } => 
-                                    transposed_message(time_us,trk,channel.as_int(),message,true,shift_key,left_key,right_key),
+                                midly::EventKind::Midi { channel, message } => transposed_message(
+                                    time_us,
+                                    trk,
+                                    channel.as_int(),
+                                    message,
+                                    true,
+                                    shift_key,
+                                    left_key,
+                                    right_key,
+                                ),
                                 _ => None,
                             })
-                            .inspect(|e| trace!("{:?}",e))
+                            .inspect(|e| trace!("{:?}", e))
                             .collect::<Vec<_>>();
                         textures.clear();
                         sequencer.play(pos_us, None, Some(play_events));
@@ -554,7 +637,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         //    "t={} id={} fid={} x={:.2} y={:.2}",
                         //    timestamp, touch_id, num_fingers, x, y
                         //);
-                        trace!("Finger {} {}",y, num_fingers);
+                        trace!("Finger {} {}", y, num_fingers);
                         if num_fingers == 2 {
                             if !scroll.update_move(y, ms_per_frame) {
                                 sequencer.stop();
@@ -572,7 +655,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         pressure: _pressure,
                     } => {
                         if scroll.stop() && !paused {
-                            sequencer.play(pos_us,None,None);
+                            sequencer.play(pos_us, None, None);
                         }
                     }
                     Event::FingerUp {
@@ -603,22 +686,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     }
                     _ => {}
                 }
-            }
-            else {
+            } else {
                 empty = true;
             }
         };
 
-        if let Some((is_end,delta)) = scroll.update_position(ms_per_frame) {
+        if let Some((is_end, delta)) = scroll.update_position(ms_per_frame) {
             if is_end && !paused {
-                sequencer.play(pos_us + delta as i64,None,None);
-            }
-            else {
+                sequencer.play(pos_us + delta as i64, None, None);
+            } else {
                 sequencer.set_pos_us(pos_us + delta as i64);
             }
         }
 
-        trace!("before sleep {:?}",sleep_duration);
+        trace!("before sleep {:?}", sleep_duration);
         std::thread::sleep(sleep_duration);
 
         trace!("before canvas present");

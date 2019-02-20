@@ -1,10 +1,10 @@
-use std::time::{Duration,Instant};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 pub struct RefPosition {
     pos_us: i64,
     at_instant: Option<Instant>,
-    scaling_1000: u16
+    scaling_1000: u16,
 }
 impl RefPosition {
     pub fn set_pos_us(&mut self, pos_us: i64) {
@@ -20,7 +20,7 @@ impl RefPosition {
                 let elapsed = instant.elapsed();
                 let mut elapsed_us = elapsed.subsec_micros() as i64;
                 elapsed_us += elapsed.as_secs() as i64 * 1_000_000;
-                let scaled_us =  elapsed_us * self.scaling_1000 as i64 / 1000;
+                let scaled_us = elapsed_us * self.scaling_1000 as i64 / 1000;
                 self.pos_us + scaled_us
             }
         }
@@ -32,7 +32,7 @@ impl RefPosition {
                 let elapsed = instant.elapsed() + duration;
                 let mut elapsed_us = elapsed.subsec_micros() as i64;
                 elapsed_us += elapsed.as_secs() as i64 * 1_000_000;
-                let scaled_us =  elapsed_us * self.scaling_1000 as i64 / 1000;
+                let scaled_us = elapsed_us * self.scaling_1000 as i64 / 1000;
                 self.pos_us + scaled_us
             }
         }
@@ -60,14 +60,12 @@ impl RefPosition {
         let pos_us = self.get_pos_us();
         if pos_us > next_pos_us {
             None
-        }
-        else {
+        } else {
             let rem_us = next_pos_us - pos_us;
             let scaled_ms = rem_us / self.scaling_1000 as i64;
             if scaled_ms == 0 {
                 None
-            }
-            else {
+            } else {
                 Some(scaled_ms as u32)
             }
         }
@@ -107,14 +105,15 @@ impl TimeController {
     pub fn new() -> TimeController {
         TimeController {
             ref_pos: Arc::new(Mutex::new(RefPosition {
-            pos_us: 0,
-            at_instant: None,
-            scaling_1000: 1000
-        }))}
+                pos_us: 0,
+                at_instant: None,
+                scaling_1000: 1000,
+            })),
+        }
     }
     pub fn new_listener(&self) -> TimeListener {
         TimeListener {
-            ref_pos: self.ref_pos.clone()
+            ref_pos: self.ref_pos.clone(),
         }
     }
     pub fn set_pos_us(&self, pos_us: i64) {

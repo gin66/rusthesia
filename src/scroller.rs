@@ -30,81 +30,73 @@ impl Scroller {
             last_y: 0.0,
             last_position: 0.0,
             amplitude: 0.0,
-            scale_factor
+            scale_factor,
         }
     }
     pub fn stop(&mut self) -> bool {
         let scrolling = match self.state {
             ScrollerState::FreeRunning => true,
-            _ => false
+            _ => false,
         };
         self.state = ScrollerState::Inactive;
         scrolling
     }
     pub fn update_move(&mut self, y: f32, dt_ms: u32) -> bool {
-        let (state,moving) = match self.state {
-            ScrollerState::FreeRunning
-            | ScrollerState::Inactive => { 
+        let (state, moving) = match self.state {
+            ScrollerState::FreeRunning | ScrollerState::Inactive => {
                 trace!("Update move");
                 self.start_y = y;
                 self.last_y = y;
                 self.time_ms = 0;
                 self.last_position = y * self.scale_factor;
                 self.amplitude = 0.0;
-                (ScrollerState::Scrolling,false)
-            },
+                (ScrollerState::Scrolling, false)
+            }
             ScrollerState::Scrolling => {
                 trace!("xUpdate move");
                 self.last_y = y;
                 self.time_ms += dt_ms;
-                let initial_velocity = (y - self.start_y)*1000.0/dt_ms as f32;
+                let initial_velocity = (y - self.start_y) * 1000.0 / dt_ms as f32;
                 self.amplitude = initial_velocity * self.scale_factor;
-                (ScrollerState::Scrolling,true)
-            },
+                (ScrollerState::Scrolling, true)
+            }
         };
         self.state = state;
         moving
     }
     pub fn end_move(&mut self) {
         self.state = match self.state {
-            ScrollerState::Inactive => { 
-                ScrollerState::Inactive
-            },
-            ScrollerState::FreeRunning
-            | ScrollerState::Scrolling => {
+            ScrollerState::Inactive => ScrollerState::Inactive,
+            ScrollerState::FreeRunning | ScrollerState::Scrolling => {
                 self.time_ms = 0;
                 ScrollerState::FreeRunning
-            },
+            }
         }
     }
-    pub fn update_position(&mut self, dt_ms: u32) -> Option<(bool,f32)> {
-        let (state,result) = match self.state {
-            ScrollerState::Inactive => { 
-                (ScrollerState::Inactive, None)
-            },
+    pub fn update_position(&mut self, dt_ms: u32) -> Option<(bool, f32)> {
+        let (state, result) = match self.state {
+            ScrollerState::Inactive => (ScrollerState::Inactive, None),
             ScrollerState::Scrolling => {
                 let new_position = self.last_y * self.scale_factor;
                 let delta = new_position - self.last_position;
                 self.last_position = new_position;
-                trace!("Scroll delta = {}",delta);
-                (ScrollerState::Scrolling, Some((false,delta)))
-            },
+                trace!("Scroll delta = {}", delta);
+                (ScrollerState::Scrolling, Some((false, delta)))
+            }
             ScrollerState::FreeRunning => {
                 self.time_ms += dt_ms;
                 let delta = self.amplitude / TIME_CONSTANT_MS;
-                trace!("Freerunning delta = {}",delta);
+                trace!("Freerunning delta = {}", delta);
                 self.amplitude -= delta;
                 if self.time_ms < SCROLL_TIME_MS {
-                    trace!("time = {}  Scroll delta = {}",self.time_ms,delta);
-                    (ScrollerState::FreeRunning,Some((false,delta)))
-                }
-                else {
-                    (ScrollerState::Inactive, Some((true,delta)))
+                    trace!("time = {}  Scroll delta = {}", self.time_ms, delta);
+                    (ScrollerState::FreeRunning, Some((false, delta)))
+                } else {
+                    (ScrollerState::Inactive, Some((true, delta)))
                 }
             }
         };
         self.state = state;
         result
-
     }
 }
