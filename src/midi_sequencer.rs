@@ -3,6 +3,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
+use std::collections::HashSet;
 
 use midly;
 
@@ -18,10 +19,21 @@ pub enum MidiEvent {
     ProgramChange(u8, u8),
 }
 impl MidiEvent {
-    pub fn as_raw(&self, _trk_idx: usize) -> Vec<u8> {
+    pub fn as_raw(&self, trk_idx: usize,
+                opt_key_pressed: Option<&mut HashSet<(usize, u8, u8)>>) -> Vec<u8> {
         match self {
-            MidiEvent::NoteOn(channel, key, pressure) => vec![0x90 + channel, *key, *pressure],
-            MidiEvent::NoteOff(channel, key, pressure) => vec![0x80 + channel, *key, *pressure],
+            MidiEvent::NoteOn(channel, key, pressure) => {
+                if let Some(key_pressed) = opt_key_pressed {
+                    key_pressed.insert( (trk_idx, *channel, *key) );
+                }
+                vec![0x90 + channel, *key, *pressure]
+            },
+            MidiEvent::NoteOff(channel, key, pressure) => {
+                if let Some(key_pressed) = opt_key_pressed {
+                    key_pressed.remove(&(trk_idx, *channel, *key) );
+                }
+                vec![0x80 + channel, *key, *pressure]
+            },
             MidiEvent::Controller(channel, control, value) => {
                 vec![0xb0 + channel, *control, *value]
             }
@@ -79,6 +91,7 @@ impl MidiSequencerThread {
         trace!("Connection opened");
         let mut idx = 0;
         let mut state = SequencerState::Stopped;
+        let mut key_pressed = HashSet::new();
         'main: loop {
             state = match state {
                 SequencerState::Stopped => match self.control.recv() {
@@ -122,9 +135,10 @@ impl MidiSequencerThread {
                         }
                         Ok(MidiSequencerCommand::Stop) => {
                             self.time_control.stop();
-                            for channel in 0..15 {
-                                //let msg = [0x0b+channel, 123, 0]; // All Notes Off
-                                //conn_out.send(&msg).unwrap();
+                            for (trk_idx, channel, key) in key_pressed.drain() {
+                                let evt = MidiEvent::NoteOff(channel as u8, key, 0);
+                                let msg = evt.as_raw(trk_idx, None);
+                                conn_out.send(&msg).unwrap();
                             }
                             SequencerState::Stopped
                         }
@@ -152,7 +166,8 @@ impl MidiSequencerThread {
                 SequencerState::Playing => {
                     let pos_us = self.time_control.get_pos_us();
                     while pos_us >= self.events[idx].0 as i64 {
-                        let msg = self.events[idx].2.as_raw(self.events[idx].1);
+                        let msg = self.events[idx].2.as_raw(self.events[idx].1,
+                                                            Some(&mut key_pressed));
                         if msg.len() > 0 {
                             conn_out.send(&msg).unwrap();
                         }
