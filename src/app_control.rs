@@ -253,4 +253,19 @@ impl<'a> AppControl<'a> {
             self.scroller = Some(scr);
         }
     }
+    pub fn update_position_if_scrolling(&mut self) {
+        if let Some(mut scr) = self.scroller.take() {
+            if let Some((is_end, delta)) = scr.update_position(self.ms_per_frame) {
+                if let Some(seq) = self.sequencer.take() {
+                    if is_end && !self.paused {
+                        seq.play(self.pos_us + delta as i64);
+                    } else {
+                        seq.set_pos_us(self.pos_us + delta as i64);
+                    }
+                    self.sequencer = Some(seq);
+                }
+            }
+            self.scroller = Some(scr);
+        }
+    }
 }

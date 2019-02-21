@@ -246,8 +246,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut paused = false;
-    let mut scale_1000 = 1000;
     let mut opt_keyboard: Option<piano_keyboard::Keyboard2d> = None;
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
@@ -402,13 +400,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         };
 
-        if let Some((is_end, delta)) = scroll.update_position(ms_per_frame) {
-            if is_end && !paused {
-                sequencer.play(pos_us + delta as i64);
-            } else {
-                sequencer.set_pos_us(pos_us + delta as i64);
-            }
-        }
+        control.update_position_if_scrolling();
 
         trace!("before sleep {:?}", sleep_duration);
         std::thread::sleep(sleep_duration);
