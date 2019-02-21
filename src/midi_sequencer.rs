@@ -1,9 +1,9 @@
 use log::*;
+use std::collections::HashSet;
 use std::sync::mpsc;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
-use std::collections::HashSet;
 
 use midly;
 
@@ -19,21 +19,24 @@ pub enum MidiEvent {
     ProgramChange(u8, u8),
 }
 impl MidiEvent {
-    pub fn as_raw(&self, trk_idx: usize,
-                opt_key_pressed: Option<&mut HashSet<(usize, u8, u8)>>) -> Vec<u8> {
+    pub fn as_raw(
+        &self,
+        trk_idx: usize,
+        opt_key_pressed: Option<&mut HashSet<(usize, u8, u8)>>,
+    ) -> Vec<u8> {
         match self {
             MidiEvent::NoteOn(channel, key, pressure) => {
                 if let Some(key_pressed) = opt_key_pressed {
-                    key_pressed.insert( (trk_idx, *channel, *key) );
+                    key_pressed.insert((trk_idx, *channel, *key));
                 }
                 vec![0x90 + channel, *key, *pressure]
-            },
+            }
             MidiEvent::NoteOff(channel, key, pressure) => {
                 if let Some(key_pressed) = opt_key_pressed {
-                    key_pressed.remove(&(trk_idx, *channel, *key) );
+                    key_pressed.remove(&(trk_idx, *channel, *key));
                 }
                 vec![0x80 + channel, *key, *pressure]
-            },
+            }
             MidiEvent::Controller(channel, control, value) => {
                 vec![0xb0 + channel, *control, *value]
             }
@@ -97,9 +100,7 @@ impl MidiSequencerThread {
                 SequencerState::Stopped => match self.control.recv() {
                     Err(mpsc::RecvError) => break,
                     Ok(MidiSequencerCommand::Ping) => SequencerState::Stopped,
-                    Ok(MidiSequencerCommand::Play(pos_us)) => {
-                        SequencerState::StartPlaying(pos_us)
-                    }
+                    Ok(MidiSequencerCommand::Play(pos_us)) => SequencerState::StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {
                         self.time_control.set_scaling_1000(new_scaling);
                         SequencerState::Stopped
@@ -114,36 +115,32 @@ impl MidiSequencerThread {
                     }
                     Ok(MidiSequencerCommand::Stop) => SequencerState::Stopped,
                 },
-                SequencerState::Playing => {
-                    match self.control.try_recv() {
-                        Err(mpsc::TryRecvError::Disconnected) => break,
-                        Err(mpsc::TryRecvError::Empty) => SequencerState::Playing,
-                        Ok(MidiSequencerCommand::Ping) => SequencerState::Playing,
-                        Ok(MidiSequencerCommand::Play(pos_us)) => {
-                            SequencerState::StartPlaying(pos_us)
-                        }
-                        Ok(MidiSequencerCommand::Scale(new_scaling)) => {
-                            self.time_control.set_scaling_1000(new_scaling);
-                            SequencerState::Playing
-                        }
-                        Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
-                            SequencerState::StartPlaying(pos_us)
-                        }
-                        Ok(MidiSequencerCommand::SetEvents(events)) => {
-                            self.events = events;
-                            SequencerState::StartPlaying(0)
-                        }
-                        Ok(MidiSequencerCommand::Stop) => {
-                            self.time_control.stop();
-                            for (trk_idx, channel, key) in key_pressed.drain() {
-                                let evt = MidiEvent::NoteOff(channel as u8, key, 0);
-                                let msg = evt.as_raw(trk_idx, None);
-                                conn_out.send(&msg).unwrap();
-                            }
-                            SequencerState::Stopped
-                        }
+                SequencerState::Playing => match self.control.try_recv() {
+                    Err(mpsc::TryRecvError::Disconnected) => break,
+                    Err(mpsc::TryRecvError::Empty) => SequencerState::Playing,
+                    Ok(MidiSequencerCommand::Ping) => SequencerState::Playing,
+                    Ok(MidiSequencerCommand::Play(pos_us)) => SequencerState::StartPlaying(pos_us),
+                    Ok(MidiSequencerCommand::Scale(new_scaling)) => {
+                        self.time_control.set_scaling_1000(new_scaling);
+                        SequencerState::Playing
                     }
-                }
+                    Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
+                        SequencerState::StartPlaying(pos_us)
+                    }
+                    Ok(MidiSequencerCommand::SetEvents(events)) => {
+                        self.events = events;
+                        SequencerState::StartPlaying(0)
+                    }
+                    Ok(MidiSequencerCommand::Stop) => {
+                        self.time_control.stop();
+                        for (trk_idx, channel, key) in key_pressed.drain() {
+                            let evt = MidiEvent::NoteOff(channel as u8, key, 0);
+                            let msg = evt.as_raw(trk_idx, None);
+                            conn_out.send(&msg).unwrap();
+                        }
+                        SequencerState::Stopped
+                    }
+                },
                 SequencerState::StartPlaying(_) => {
                     panic!("StartPlaying should not be reachable here")
                 }
@@ -166,8 +163,9 @@ impl MidiSequencerThread {
                 SequencerState::Playing => {
                     let pos_us = self.time_control.get_pos_us();
                     while pos_us >= self.events[idx].0 as i64 {
-                        let msg = self.events[idx].2.as_raw(self.events[idx].1,
-                                                            Some(&mut key_pressed));
+                        let msg = self.events[idx]
+                            .2
+                            .as_raw(self.events[idx].1, Some(&mut key_pressed));
                         if msg.len() > 0 {
                             conn_out.send(&msg).unwrap();
                         }
@@ -226,9 +224,7 @@ impl MidiSequencer {
             .ok();
     }
     pub fn play(&self, pos_us: i64) {
-        self.control
-            .send(MidiSequencerCommand::Play(pos_us))
-            .ok();
+        self.control.send(MidiSequencerCommand::Play(pos_us)).ok();
     }
     pub fn set_scaling_1000(&self, new_scale: u16) {
         self.control

@@ -16,10 +16,12 @@ use sdl2::keyboard::Keycode;
 use crate::time_controller::TimeListenerTrait;
 
 //mod app;
+mod app_control;
 mod draw_engine;
 mod midi_container;
 mod midi_sequencer;
 mod scroller;
+mod sdl_event_processor;
 mod time_controller;
 mod usage;
 
