@@ -9,7 +9,7 @@ use crate::midi_sequencer::RawMidiTuple;
 use crate::midi_container::MidiContainer;
 use crate::scroller::Scroller;
 
-fn transposed_message(
+pub fn transposed_message(
     time_us: u64,
     trk: usize,
     channel: u8,

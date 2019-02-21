@@ -5,7 +5,7 @@ use sdl2::keyboard::Keycode;
 
 use crate::app_control::AppControl;
 
-fn process_event(event: Event, control: &mut AppControl) -> bool {
+pub fn process_event(event: Event, control: &mut AppControl) -> bool {
     match event {
         Event::Window { win_event, .. } => {
             trace!("Unprocessed window Event: {:?}", win_event);
