@@ -100,6 +100,7 @@ pub struct AppControl<'a> {
     left_key: u8,
     right_key: u8,
     shift_key: i8,
+    need_redraw_textures: bool,
     show_tracks: Vec<usize>,
     play_tracks: Vec<usize>,
     show_events: Option<Vec<RawMidiTuple>>,
@@ -117,6 +118,7 @@ impl<'a> AppControl<'a> {
             left_key: 0,
             right_key: 0,
             shift_key: 0,
+            need_redraw_textures: false,
             show_tracks: vec![],
             play_tracks: vec![],
             show_events: None,
@@ -180,16 +182,17 @@ impl<'a> AppControl<'a> {
                     .timed(&container.header().timing)
                     .filter(|(_time_us, trk, _evt)| self.show_tracks.contains(trk))
                     .filter_map(|(time_us, trk, evt)| match evt {
-                        midly::EventKind::Midi { channel, message } => transposed_message(
-                            time_us,
-                            trk,
-                            channel.as_int(),
-                            &message,
-                            false,
-                            self.shift_key,
-                            self.left_key,
-                            self.right_key,
-                        ),
+                        midly::EventKind::Midi { channel, message } => {
+                            transposed_message(
+                                time_us,
+                                trk,
+                                channel.as_int(),
+                                &message,
+                                false,
+                                self.shift_key,
+                                self.left_key,
+                                self.right_key)
+                        },
                         _ => None,
                     })
                     .collect::<Vec<_>>();
@@ -199,16 +202,17 @@ impl<'a> AppControl<'a> {
                     .timed(&container.header().timing)
                     .filter(|(_time_us, trk, _evt)| self.play_tracks.contains(trk))
                     .filter_map(|(time_us, trk, evt)| match evt {
-                        midly::EventKind::Midi { channel, message } => transposed_message(
-                            time_us,
-                            trk,
-                            channel.as_int(),
-                            &message,
-                            true,
-                            self.shift_key,
-                            self.left_key,
-                            self.right_key,
-                        ),
+                        midly::EventKind::Midi { channel, message } => {
+                            transposed_message(
+                                time_us,
+                                trk,
+                                channel.as_int(),
+                                &message,
+                                true,
+                                self.shift_key,
+                                self.left_key,
+                                self.right_key)
+                        },
                         _ => None,
                     })
                     .inspect(|e| trace!("{:?}", e))
@@ -219,7 +223,7 @@ impl<'a> AppControl<'a> {
             seq.play(self.pos_us);
             self.sequencer = Some(seq);
         }
-        //textures.clear();
+        self.need_redraw_textures = true;
     }
     pub fn two_finger_scroll_start(&mut self, y: f32) {
         if let Some(mut scr) = self.scroller.take() {
