@@ -314,6 +314,7 @@ impl<'a> AppControl<'a> {
                     seq.set_pos_us(self.pos_us + delta as i64);
                 }
                 self.sequencer = Some(seq);
+                self.pos_us = self.pos_us + delta as i64;
             }
         }
     }

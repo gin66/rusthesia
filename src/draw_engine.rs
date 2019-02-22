@@ -28,9 +28,9 @@ fn is_white(key: u8) -> bool {
 fn trk2col(trk: usize, key: u8) -> Color {
     match (trk % 2, is_white(key)) {
         (0, true) => Color::RGB(0, 255, 255),
-        (0, false) => Color::RGB(0, 200, 200),
+        (0, false) => Color::RGB(0, 180, 180),
         (_, true) => Color::RGB(255, 0, 255),
-        (_, false) => Color::RGB(200, 0, 200),
+        (_, false) => Color::RGB(180, 0, 180),
     }
 }
 
