@@ -110,11 +110,12 @@ pub struct AppControl<'a> {
     play_tracks: Vec<usize>,
     show_events: Option<Vec<RawMidiTuple>>,
     sequencer: Option<MidiSequencer>,
-    scroller: Option<Scroller>,
+    scroller: Scroller,
     container: Option<MidiContainer<'a>>,
 }
 impl<'a> AppControl<'a> {
     pub fn new() -> AppControl<'a> {
+        let scroller = Scroller::new(5_000_000.0);
         AppControl {
             midi_fname: "".to_string(),
             command_list_tracks: false,
@@ -132,7 +133,7 @@ impl<'a> AppControl<'a> {
             play_tracks: vec![],
             show_events: None,
             sequencer: None,
-            scroller: None,
+            scroller,
             container: None,
         }
     }
@@ -152,6 +153,7 @@ impl<'a> AppControl<'a> {
         let list_tracks = matches.is_present("list");
         let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);;
         let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
+        let scroller = Scroller::new(5_000_000.0);
         AppControl {
             midi_fname,
             command_list_tracks: list_tracks,
@@ -169,7 +171,7 @@ impl<'a> AppControl<'a> {
             play_tracks,
             show_events: None,
             sequencer: None,
-            scroller: None,
+            scroller,
             container: None,
         }
     }
@@ -272,46 +274,34 @@ impl<'a> AppControl<'a> {
         self.need_redraw_textures = true;
     }
     pub fn two_finger_scroll_start(&mut self, y: f32) {
-        if let Some(mut scr) = self.scroller.take() {
-            if !scr.update_move(y, self.ms_per_frame) {
-                if let Some(seq) = self.sequencer.take() {
-                    seq.stop();
-                    self.sequencer = Some(seq);
-                }
-            };
-            self.scroller = Some(scr);
+        if !self.scroller.update_move(y, self.ms_per_frame) {
+            if let Some(seq) = self.sequencer.take() {
+                seq.stop();
+                self.sequencer = Some(seq);
+            }
         }
     }
     pub fn finger_touch(&mut self) {
-        if let Some(mut scr) = self.scroller.take() {
-            if scr.stop() && !self.paused {
-                if let Some(seq) = self.sequencer.take() {
-                    seq.play(self.pos_us);
-                    self.sequencer = Some(seq);
-                }
-            };
-            self.scroller = Some(scr);
+        if self.scroller.stop() && !self.paused {
+            if let Some(seq) = self.sequencer.take() {
+                seq.play(self.pos_us);
+                self.sequencer = Some(seq);
+            }
         }
     }
     pub fn finger_up(&mut self) {
-        if let Some(mut scr) = self.scroller.take() {
-            scr.end_move();
-            self.scroller = Some(scr);
-        }
+        self.scroller.end_move();
     }
     pub fn update_position_if_scrolling(&mut self) {
-        if let Some(mut scr) = self.scroller.take() {
-            if let Some((is_end, delta)) = scr.update_position(self.ms_per_frame) {
-                if let Some(seq) = self.sequencer.take() {
-                    if is_end && !self.paused {
-                        seq.play(self.pos_us + delta as i64);
-                    } else {
-                        seq.set_pos_us(self.pos_us + delta as i64);
-                    }
-                    self.sequencer = Some(seq);
+        if let Some((is_end, delta)) = self.scroller.update_position(self.ms_per_frame) {
+            if let Some(seq) = self.sequencer.take() {
+                if is_end && !self.paused {
+                    seq.play(self.pos_us + delta as i64);
+                } else {
+                    seq.set_pos_us(self.pos_us + delta as i64);
                 }
+                self.sequencer = Some(seq);
             }
-            self.scroller = Some(scr);
         }
     }
     pub fn is_debug(&self) -> bool {
@@ -334,6 +324,9 @@ impl<'a> AppControl<'a> {
     }
     pub fn list_command(&self) -> bool {
         self.command_list_tracks
+    }
+    pub fn ms_per_frame(&self) -> u32 {
+        self.ms_per_frame
     }
     pub fn show_events(&self) -> Option<&Vec<RawMidiTuple>> {
         self.show_events.as_ref()

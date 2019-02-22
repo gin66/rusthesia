@@ -187,9 +187,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let waterfall_tex_height = 1000;
 
     let base_time = Instant::now();
-    let ms_per_frame = 40;
     let mut frame_cnt = 0;
-    let mut scroll = scroller::Scroller::new(5_000_000.0);
 
     let time_keeper = sequencer.get_new_listener();
     sequencer.play(-3_000_000);
@@ -271,7 +269,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
         let elapsed = base_time.elapsed();
         let elapsed_us = elapsed.subsec_micros();
-        let rem_us = ms_per_frame * 1_000 - elapsed_us % (ms_per_frame * 1_000);
+        let rem_us = control.ms_per_frame() * 1_000 - elapsed_us % (control.ms_per_frame() * 1_000);
         let rem_dur = Duration::new(0, rem_us * 1_000);
         let pos_us: i64 = time_keeper.get_pos_us_after(rem_dur);
         trace!("pos_us={}", pos_us);
@@ -317,6 +315,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         //for event in event_pump.poll_iter() {
         let mut empty = false;
         let sleep_duration = loop {
+            let ms_per_frame = control.ms_per_frame();
             let elapsed = base_time.elapsed();
             let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
             let next_frame_cnt = elapsed_us / (ms_per_frame as u64 * 1_000) + 1;
