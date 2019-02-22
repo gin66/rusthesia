@@ -1,4 +1,4 @@
-//use std::thread::sleep;
+use std::thread::sleep;
 use std::time::Duration;
 
 use log::*;
@@ -32,8 +32,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let nr_of_keys = control.right_key() - control.left_key() + 1;
 
-    let midi_fname = control.midi_fname();
-    let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+    let smf_buf = midly::SmfBuffer::open(&control.midi_fname()).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
     if control.is_debug() {
         for _evt in container.iter() {
@@ -98,7 +97,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return Ok(());
     }
 
-    if control.show_events_len() == 0 {
+    //if control.show_events_len() == 0 {
         //sequencer.play(0);
         //loop {
         //    sleep(Duration::from_millis(1000));
@@ -106,8 +105,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
         //        break;
         //    }
         //}
-        return Ok(());
-    }
+        //return Ok(());
+    //}
+    control.container = Some(container);
+    control.create_connected_sequencer()?;
+    control.tune_up(true);
+    control.tune_up(false);
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -135,7 +138,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     );
 
     let window = video_subsystem
-        .window(&format!("Rusthesia: {}", midi_fname), 800, 600)
+        .window(&format!("Rusthesia: {}", control.midi_fname()), 800, 600)
         .position_centered()
         .resizable()
         .build()
@@ -154,7 +157,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
-    //let time_keeper = sequencer.get_new_listener();
+    control.fix_base_time();
     //sequencer.play(-3_000_000);
     'running: loop {
         let rec = canvas.viewport();
@@ -282,7 +285,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
             if let Some(event) = event_pump.poll_event() {
                 trace!("event received: {:?}", event);
-                sdl_event_processor::process_event(event, &mut control);
+                if !sdl_event_processor::process_event(event, &mut control) {
+                    break 'running;
+                }
             } else {
                 empty = true;
             }
@@ -296,6 +301,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
         trace!("before canvas present");
         canvas.present();
     }
-    //sleep(Duration::from_millis(150));
-    //Ok(())
+    sleep(Duration::from_millis(150));
+    Ok(())
 }

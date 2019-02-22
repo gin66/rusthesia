@@ -109,13 +109,14 @@ pub struct AppControl<'a> {
     left_key: u8,
     right_key: u8,
     shift_key: i8,
+    last_frame: u64,
     need_redraw_textures: bool,
     show_tracks: Vec<usize>,
     play_tracks: Vec<usize>,
     show_events: Option<Vec<RawMidiTuple>>,
     sequencer: Option<MidiSequencer>,
     scroller: Scroller,
-    container: Option<MidiContainer<'a>>,
+    pub container: Option<MidiContainer<'a>>,
     time_keeper: Option<TimeListener>,
 }
 impl<'a> AppControl<'a> {
@@ -134,6 +135,7 @@ impl<'a> AppControl<'a> {
             left_key: 21,
             right_key: 108,
             shift_key: 0,
+            last_frame: 0,
             need_redraw_textures: false,
             show_tracks: vec![],
             play_tracks: vec![],
@@ -174,6 +176,7 @@ impl<'a> AppControl<'a> {
             left_key,
             right_key,
             shift_key,
+            last_frame: 0,
             need_redraw_textures: false,
             show_tracks,
             play_tracks,
@@ -348,6 +351,7 @@ impl<'a> AppControl<'a> {
     pub fn create_connected_sequencer(&mut self) -> Result<(), Box<std::error::Error>> {
         let mut sequencer = MidiSequencer::new();
         sequencer.connect()?;
+        self.time_keeper = Some(sequencer.get_new_listener());
         self.sequencer = Some(sequencer);
         Ok(())
     }
@@ -372,12 +376,14 @@ impl<'a> AppControl<'a> {
             let elapsed = base_time.elapsed();
             let elapsed_us = elapsed.subsec_micros() as u64
                                 + elapsed.as_secs() * 1_000_000;
-            let lost_frames: u32 = (elapsed_us / self.ms_per_frame() as u64 / 1_000) as u32;
+            let us_per_frame = self.ms_per_frame() as u64 * 1_000;
+            let curr_frame = elapsed_us / us_per_frame;
+            let lost_frames = curr_frame - self.last_frame;
+            self.last_frame = curr_frame;
             if  lost_frames > 0 {
                 warn!("{} FRAME(S) LOST",lost_frames);
             }
-            self.ms_per_frame() * 1_000
-                            -  lost_frames * (self.ms_per_frame() * 1_000) as u32
+            (elapsed_us -  curr_frame * us_per_frame) as u32
         }
         else {
             0
