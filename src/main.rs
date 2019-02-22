@@ -1,14 +1,10 @@
-use std::io::{stdin, stdout, Write};
-use std::thread::sleep;
-use std::time::{Duration, Instant};
+//use std::thread::sleep;
+use std::time::Duration;
 
 use log::*;
 use simple_logging;
 
-use midir::MidiOutput;
 use midly;
-
-use crate::time_controller::TimeListenerTrait;
 
 //mod app;
 mod app_control;
@@ -102,42 +98,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return Ok(());
     }
 
-    trace!("output");
-    let midi_out = MidiOutput::new("Rusthesia")?;
-    // Get an output port (read from console if multiple are available)
-    let out_port = match midi_out.port_count() {
-        0 => return Err("no output port found".into()),
-        1 => {
-            println!(
-                "Choosing the only available output port: {}",
-                midi_out.port_name(0).unwrap()
-            );
-            0
-        }
-        _ => {
-            println!("\nAvailable output ports:");
-            for i in 0..midi_out.port_count() {
-                println!("{}: {}", i, midi_out.port_name(i).unwrap());
-            }
-            print!("Please select output port: ");
-            stdout().flush()?;
-            let mut input = String::new();
-            stdin().read_line(&mut input)?;
-            input.trim().parse()?
-        }
-    };
-    drop(midi_out);
-
-    let sequencer = midi_sequencer::MidiSequencer::new(out_port);
-
     if control.show_events_len() == 0 {
-        sequencer.play(0);
-        loop {
-            sleep(Duration::from_millis(1000));
-            if sequencer.is_finished() {
-                break;
-            }
-        }
+        //sequencer.play(0);
+        //loop {
+        //    sleep(Duration::from_millis(1000));
+        //    if sequencer.is_finished() {
+        //        break;
+        //    }
+        //}
         return Ok(());
     }
 
@@ -186,11 +154,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
-    let base_time = Instant::now();
-    let mut frame_cnt = 0;
-
-    let time_keeper = sequencer.get_new_listener();
-    sequencer.play(-3_000_000);
+    //let time_keeper = sequencer.get_new_listener();
+    //sequencer.play(-3_000_000);
     'running: loop {
         let rec = canvas.viewport();
         let width = rec.width();
@@ -267,12 +232,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
 
-        let elapsed = base_time.elapsed();
-        let elapsed_us = elapsed.subsec_micros();
-        let rem_us = control.ms_per_frame() * 1_000 - elapsed_us % (control.ms_per_frame() * 1_000);
-        let rem_dur = Duration::new(0, rem_us * 1_000);
-        let pos_us: i64 = time_keeper.get_pos_us_after(rem_dur);
-        trace!("pos_us={}", pos_us);
+        let pos_us = control.get_pos_us_at_next_frame();
 
         // Clear canvas
         canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
@@ -315,15 +275,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         //for event in event_pump.poll_iter() {
         let mut empty = false;
         let sleep_duration = loop {
-            let ms_per_frame = control.ms_per_frame();
-            let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
-            let next_frame_cnt = elapsed_us / (ms_per_frame as u64 * 1_000) + 1;
-            if next_frame_cnt > frame_cnt + 1 {
-                warn!("FRAME LOST curr={} next={}", frame_cnt, next_frame_cnt);
-            }
-            frame_cnt = next_frame_cnt;
-            let rem_us = ms_per_frame as u64 * 1_000 - elapsed_us % (ms_per_frame as u64 * 1_000);
+            let rem_us = control.us_till_next_frame();
             if empty || rem_us < 5_000 {
                 break Duration::new(0, rem_us as u32 * 1_000);
             }
@@ -344,6 +296,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
         trace!("before canvas present");
         canvas.present();
     }
-    sleep(Duration::from_millis(150));
-    Ok(())
+    //sleep(Duration::from_millis(150));
+    //Ok(())
 }

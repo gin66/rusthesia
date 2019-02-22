@@ -1,11 +1,13 @@
-use log::*;
+use std::io::{stdin,stdout,Write};
 use std::collections::HashSet;
 use std::sync::mpsc;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 
+use log::*;
 use midly;
+use midir::MidiOutput;
 
 use crate::time_controller::{TimeController, TimeListener, TimeListenerTrait};
 #[derive(Debug)]
@@ -54,6 +56,7 @@ pub type RawMidiTuple = (u64, usize, MidiEvent);
 
 enum MidiSequencerCommand {
     Ping,
+    Connect(usize),
     SetPosition(i64),
     SetEvents(Vec<RawMidiTuple>),
     Play(i64),
@@ -69,7 +72,7 @@ enum SequencerState {
 }
 
 struct MidiSequencerThread {
-    out_port: usize,
+    out_port: Option<usize>,
     control: mpsc::Receiver<MidiSequencerCommand>,
     events: Vec<RawMidiTuple>,
     time_control: TimeController,
@@ -77,11 +80,10 @@ struct MidiSequencerThread {
 impl MidiSequencerThread {
     fn new(
         control: mpsc::Receiver<MidiSequencerCommand>,
-        out_port: usize,
         time_control: TimeController,
     ) -> MidiSequencerThread {
         MidiSequencerThread {
-            out_port,
+            out_port: None,
             control,
             events: vec![],
             time_control,
@@ -89,10 +91,7 @@ impl MidiSequencerThread {
     }
     fn run(&mut self) {
         use crate::midi_sequencer::SequencerState::*;
-        trace!("Opening connection");
-        let midi_out = midir::MidiOutput::new("My Test Output").unwrap();
-        let mut conn_out = midi_out.connect(self.out_port, "midir-test").unwrap();
-        trace!("Connection opened");
+        let mut opt_conn_out = None;
         let mut idx = 0;
         let mut state = EOF;
         let mut key_pressed = HashSet::new();
@@ -100,6 +99,14 @@ impl MidiSequencerThread {
             state = match state {
                 EOF => match self.control.recv() {
                     Err(mpsc::RecvError) => break,
+                    Ok(MidiSequencerCommand::Connect(out_port)) => {
+                        trace!("Opening connection");
+                        let midi_out = midir::MidiOutput::new("Rusthesia").unwrap();
+                        opt_conn_out = Some(midi_out.connect(out_port,
+                                                            "rusthesia").unwrap());
+                        trace!("Connection opened");
+                        EOF
+                    }
                     Ok(MidiSequencerCommand::Stop)
                     | Ok(MidiSequencerCommand::Ping) => EOF,
                     Ok(MidiSequencerCommand::Play(pos_us)) => StartPlaying(pos_us),
@@ -118,6 +125,7 @@ impl MidiSequencerThread {
                 },
                 Stopped => match self.control.recv() {
                     Err(mpsc::RecvError) => break,
+                    Ok(MidiSequencerCommand::Connect(out_port)) => panic!("Not connected"),
                     Ok(MidiSequencerCommand::Ping) => Stopped,
                     Ok(MidiSequencerCommand::Play(pos_us)) => StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {
@@ -137,6 +145,7 @@ impl MidiSequencerThread {
                 Playing => match self.control.try_recv() {
                     Err(mpsc::TryRecvError::Disconnected) => break,
                     Err(mpsc::TryRecvError::Empty) => Playing,
+                    Ok(MidiSequencerCommand::Connect(out_port)) => panic!("Not connected"),
                     Ok(MidiSequencerCommand::Ping) => Playing,
                     Ok(MidiSequencerCommand::Play(pos_us)) => StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {
@@ -152,10 +161,12 @@ impl MidiSequencerThread {
                     }
                     Ok(MidiSequencerCommand::Stop) => {
                         self.time_control.stop();
-                        for (trk_idx, channel, key) in key_pressed.drain() {
-                            let evt = MidiEvent::NoteOff(channel as u8, key, 0);
-                            let msg = evt.as_raw(trk_idx, None);
-                            conn_out.send(&msg).unwrap();
+                        if let Some(ref mut conn_out) = opt_conn_out.as_mut() {
+                            for (trk_idx, channel, key) in key_pressed.drain() {
+                                let evt = MidiEvent::NoteOff(channel as u8, key, 0);
+                                let msg = evt.as_raw(trk_idx, None);
+                                conn_out.send(&msg).unwrap();
+                            }
                         }
                         Stopped
                     }
@@ -176,6 +187,7 @@ impl MidiSequencerThread {
                         idx += 1;
                     }
                     if idx >= self.events.len() {
+                        self.time_control.stop();
                         EOF
                     }
                     else {
@@ -185,17 +197,20 @@ impl MidiSequencerThread {
                 }
                 Playing => {
                     let pos_us = self.time_control.get_pos_us();
-                    while idx < self.events.len()
-                                && pos_us >= self.events[idx].0 as i64 {
-                        let msg = self.events[idx]
-                            .2
-                            .as_raw(self.events[idx].1, Some(&mut key_pressed));
-                        if msg.len() > 0 {
-                            conn_out.send(&msg).unwrap();
+                    if let Some(ref mut conn_out) = opt_conn_out.as_mut() {
+                        while idx < self.events.len()
+                                    && pos_us >= self.events[idx].0 as i64 {
+                            let msg = self.events[idx]
+                                .2
+                                .as_raw(self.events[idx].1, Some(&mut key_pressed));
+                            if msg.len() > 0 {
+                                conn_out.send(&msg).unwrap();
+                            }
+                            idx += 1;
                         }
-                        idx += 1;
                     }
                     if idx >= self.events.len() {
+                        self.time_control.stop();
                         EOF
                     }
                     else {
@@ -211,8 +226,10 @@ impl MidiSequencerThread {
                 }
             }
         }
-        conn_out.close();
-        trace!("Connection closed");
+        if let Some(conn_out) = opt_conn_out {
+            conn_out.close();
+            trace!("Connection closed");
+        }
     }
 }
 
@@ -222,11 +239,11 @@ pub struct MidiSequencer {
 }
 
 impl MidiSequencer {
-    pub fn new(out_port: usize) -> MidiSequencer {
+    pub fn new() -> MidiSequencer {
         let (tx, rx) = mpsc::channel();
         let controller = TimeController::new();
         let time_listener = controller.new_listener();
-        thread::spawn(move || MidiSequencerThread::new(rx, out_port, controller).run());
+        thread::spawn(move || MidiSequencerThread::new(rx, controller).run());
         MidiSequencer {
             control: tx,
             time_listener,
@@ -258,5 +275,34 @@ impl MidiSequencer {
     }
     pub fn stop(&self) {
         self.control.send(MidiSequencerCommand::Stop).ok();
+    }
+    pub fn connect(&mut self) -> Result<(), Box<std::error::Error>> {
+        trace!("output");
+        let midi_out = MidiOutput::new("Rusthesia")?;
+        // Get an output port (read from console if multiple are available)
+        let out_port = match midi_out.port_count() {
+            0 => return Err("no output port found".into()),
+            1 => {
+                println!(
+                    "Choosing the only available output port: {}",
+                    midi_out.port_name(0).unwrap()
+                );
+                0
+            }
+            _ => {
+                println!("\nAvailable output ports:");
+                for i in 0..midi_out.port_count() {
+                    println!("{}: {}", i, midi_out.port_name(i).unwrap());
+                }
+                print!("Please select output port: ");
+                stdout().flush()?;
+                let mut input = String::new();
+                stdin().read_line(&mut input)?;
+                input.trim().parse()?
+            }
+        };
+        drop(midi_out);
+        self.control.send(MidiSequencerCommand::Connect(out_port)).ok();
+        Ok(())
     }
 }

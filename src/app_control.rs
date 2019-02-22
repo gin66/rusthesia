@@ -1,5 +1,6 @@
-use log::*;
+use std::time::{Instant,Duration};
 
+use log::*;
 use midly;
 use clap::ArgMatches;
 use clap::{value_t, values_t};
@@ -8,6 +9,8 @@ use crate::midi_sequencer::MidiEvent;
 use crate::midi_sequencer::MidiSequencer;
 use crate::midi_sequencer::RawMidiTuple;
 use crate::midi_container::MidiContainer;
+use crate::time_controller::TimeListenerTrait;
+use crate::time_controller::TimeListener;
 use crate::scroller::Scroller;
 
 pub fn transposed_message(
@@ -101,6 +104,7 @@ pub struct AppControl<'a> {
     paused: bool,
     scale_1000: u16,
     ms_per_frame: u32,
+    base_time: Option<Instant>,
     pos_us: i64,
     left_key: u8,
     right_key: u8,
@@ -112,6 +116,7 @@ pub struct AppControl<'a> {
     sequencer: Option<MidiSequencer>,
     scroller: Scroller,
     container: Option<MidiContainer<'a>>,
+    time_keeper: Option<TimeListener>,
 }
 impl<'a> AppControl<'a> {
     pub fn new() -> AppControl<'a> {
@@ -124,6 +129,7 @@ impl<'a> AppControl<'a> {
             paused: false,
             scale_1000: 1000,
             ms_per_frame: 40,
+            base_time: None,
             pos_us: 0,
             left_key: 21,
             right_key: 108,
@@ -135,6 +141,7 @@ impl<'a> AppControl<'a> {
             sequencer: None,
             scroller,
             container: None,
+            time_keeper: None,
         }
     }
     pub fn from_clap(matches: ArgMatches) -> AppControl<'a> {
@@ -162,6 +169,7 @@ impl<'a> AppControl<'a> {
             paused: false,
             scale_1000: 1000,
             ms_per_frame: 40,
+            base_time: None,
             pos_us: 0,
             left_key,
             right_key,
@@ -173,6 +181,7 @@ impl<'a> AppControl<'a> {
             sequencer: None,
             scroller,
             container: None,
+            time_keeper: None,
         }
     }
     pub fn toggle_play(&mut self) {
@@ -336,4 +345,43 @@ impl<'a> AppControl<'a> {
             .map(|events| events.len())
             .unwrap_or(0)
     }
+    pub fn create_connected_sequencer(&mut self) -> Result<(), Box<std::error::Error>> {
+        let mut sequencer = MidiSequencer::new();
+        sequencer.connect()?;
+        self.sequencer = Some(sequencer);
+        Ok(())
+    }
+    pub fn fix_base_time(&mut self) {
+        self.base_time = Some(Instant::now());
+    }
+    pub fn get_pos_us_at_next_frame(&mut self) -> i64 {
+        if let Some(base_time) = self.base_time.as_ref() {
+            let elapsed = base_time.elapsed();
+            let elapsed_us = elapsed.subsec_micros();
+            let rem_us = self.ms_per_frame() * 1_000 - elapsed_us
+                            % (self.ms_per_frame() * 1_000);
+            let rem_dur = Duration::new(0, rem_us * 1_000);
+            self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
+        }
+        else {
+            0
+        }
+    }
+    pub fn us_till_next_frame(&mut self) -> u32 {
+        if let Some(base_time) = self.base_time.as_ref() {
+            let elapsed = base_time.elapsed();
+            let elapsed_us = elapsed.subsec_micros() as u64
+                                + elapsed.as_secs() * 1_000_000;
+            let lost_frames: u32 = (elapsed_us / self.ms_per_frame() as u64 / 1_000) as u32;
+            if  lost_frames > 0 {
+                warn!("{} FRAME(S) LOST",lost_frames);
+            }
+            self.ms_per_frame() * 1_000
+                            -  lost_frames * (self.ms_per_frame() * 1_000) as u32
+        }
+        else {
+            0
+        }
+    }
 }
+
