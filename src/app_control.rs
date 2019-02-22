@@ -1,7 +1,8 @@
 use log::*;
 
-use midir::MidiOutput;
 use midly;
+use clap::ArgMatches;
+use clap::{value_t, values_t};
 
 use crate::midi_sequencer::MidiEvent;
 use crate::midi_sequencer::MidiSequencer;
@@ -93,6 +94,10 @@ pub fn transposed_message(
 }
 
 pub struct AppControl<'a> {
+    midi_fname: String,
+    command_list_tracks: bool,
+    debug: bool,
+    verbose: bool,
     paused: bool,
     scale_1000: u16,
     ms_per_frame: u32,
@@ -111,16 +116,57 @@ pub struct AppControl<'a> {
 impl<'a> AppControl<'a> {
     pub fn new() -> AppControl<'a> {
         AppControl {
+            midi_fname: "".to_string(),
+            command_list_tracks: false,
+            debug: false,
+            verbose: false,
             paused: false,
             scale_1000: 1000,
             ms_per_frame: 40,
             pos_us: 0,
-            left_key: 0,
-            right_key: 0,
+            left_key: 21,
+            right_key: 108,
             shift_key: 0,
             need_redraw_textures: false,
             show_tracks: vec![],
             play_tracks: vec![],
+            show_events: None,
+            sequencer: None,
+            scroller: None,
+            container: None,
+        }
+    }
+    pub fn from_clap(matches: ArgMatches) -> AppControl<'a> {
+        let debug = matches.is_present("debug");
+        let verbose = matches.is_present("verbose");
+        let shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
+        let rd64 = matches.is_present("RD64");
+        let (left_key, right_key): (u8, u8) = if rd64 {
+            // RD-64 is A1 to C7
+            (21 + 12, 108 - 12)
+        } else {
+            // 88 note piano range from A0 to C8
+            (21, 108)
+        };
+        let midi_fname = matches.value_of("MIDI").unwrap().to_string();
+        let list_tracks = matches.is_present("list");
+        let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);;
+        let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
+        AppControl {
+            midi_fname,
+            command_list_tracks: list_tracks,
+            debug,
+            verbose,
+            paused: false,
+            scale_1000: 1000,
+            ms_per_frame: 40,
+            pos_us: 0,
+            left_key,
+            right_key,
+            shift_key,
+            need_redraw_textures: false,
+            show_tracks,
+            play_tracks,
             show_events: None,
             sequencer: None,
             scroller: None,
@@ -267,5 +313,34 @@ impl<'a> AppControl<'a> {
             }
             self.scroller = Some(scr);
         }
+    }
+    pub fn is_debug(&self) -> bool {
+        self.debug
+    }
+    pub fn verbosity(&self) -> bool {
+        self.verbose
+    }
+    pub fn shift_key(&self) -> i8 {
+        self.shift_key
+    }
+    pub fn left_key(&self) -> u8 {
+        self.left_key
+    }
+    pub fn right_key(&self) -> u8 {
+        self.right_key
+    }
+    pub fn midi_fname(&self) -> &str {
+        &self.midi_fname
+    }
+    pub fn list_command(&self) -> bool {
+        self.command_list_tracks
+    }
+    pub fn show_events(&self) -> Option<&Vec<RawMidiTuple>> {
+        self.show_events.as_ref()
+    }
+    pub fn show_events_len(&self) -> usize {
+        self.show_events.as_ref()
+            .map(|events| events.len())
+            .unwrap_or(0)
     }
 }

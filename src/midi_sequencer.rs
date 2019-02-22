@@ -77,13 +77,12 @@ impl MidiSequencerThread {
     fn new(
         control: mpsc::Receiver<MidiSequencerCommand>,
         out_port: usize,
-        events: Vec<RawMidiTuple>,
         time_control: TimeController,
     ) -> MidiSequencerThread {
         MidiSequencerThread {
             out_port,
             control,
-            events,
+            events: vec![],
             time_control,
         }
     }
@@ -197,11 +196,11 @@ pub struct MidiSequencer {
 }
 
 impl MidiSequencer {
-    pub fn new(out_port: usize, events: Vec<RawMidiTuple>) -> MidiSequencer {
+    pub fn new(out_port: usize) -> MidiSequencer {
         let (tx, rx) = mpsc::channel();
         let controller = TimeController::new();
         let time_listener = controller.new_listener();
-        thread::spawn(move || MidiSequencerThread::new(rx, out_port, events, controller).run());
+        thread::spawn(move || MidiSequencerThread::new(rx, out_port, controller).run());
         MidiSequencer {
             control: tx,
             time_listener,

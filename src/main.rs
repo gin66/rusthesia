@@ -8,11 +8,6 @@ use simple_logging;
 use midir::MidiOutput;
 use midly;
 
-use clap::{value_t, values_t};
-
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-
 use crate::time_controller::TimeListenerTrait;
 
 //mod app;
@@ -25,42 +20,26 @@ mod sdl_event_processor;
 mod time_controller;
 mod usage;
 
-use crate::app_control::transposed_message;
-
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
+    let mut control = app_control::AppControl::from_clap(matches);
 
-    let debug = matches.is_present("debug");
-    simple_logging::log_to_stderr(if debug {
+    simple_logging::log_to_stderr(if control.is_debug() {
         LevelFilter::Trace
     } else {
-        if matches.is_present("verbose") {
+        if control.verbosity() {
             LevelFilter::Warn
         } else {
             LevelFilter::Error
         }
     });
 
-    let mut shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
+    let nr_of_keys = control.right_key() - control.left_key() + 1;
 
-    // MIDI notes are numbered from 0 to 127 assigned to C-1 to G9
-    let rd64 = matches.is_present("RD64");
-    let (left_key, right_key): (u8, u8) = if rd64 {
-        // RD-64 is A1 to C7
-        (21 + 12, 108 - 12)
-    } else {
-        // 88 note piano range from A0 to C8
-        (21, 108)
-    };
-
-    let mut control = app_control::AppControl::new();
-
-    let nr_of_keys = right_key - left_key + 1;
-
-    let midi_fname = matches.value_of("MIDI").unwrap();
+    let midi_fname = control.midi_fname();
     let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
-    if debug {
+    if control.is_debug() {
         for _evt in container.iter() {
             //trace!("{:?}", evt);
         }
@@ -69,8 +48,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
     }
 
-    let list_tracks = matches.is_present("list");
-    if list_tracks {
+    if control.list_command() {
         for i in 0..container.nr_of_tracks() {
             println!("Track {}:", i);
             let mut used_channels = vec![false; 16];
@@ -124,50 +102,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return Ok(());
     }
 
-    let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);;
-    let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
-
-    // Get all the events to show/play
-    let mut show_events = container
-        .iter()
-        .timed(&container.header().timing)
-        .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
-        .filter_map(|(time_us, trk, evt)| match evt {
-            midly::EventKind::Midi { channel, message } => transposed_message(
-                time_us,
-                trk,
-                channel.as_int(),
-                message,
-                false,
-                shift_key,
-                left_key,
-                right_key,
-            ),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let mut play_events = container
-        .iter()
-        .timed(&container.header().timing)
-        .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
-        .filter_map(|(time_us, trk, evt)| match evt {
-            midly::EventKind::Midi { channel, message } => transposed_message(
-                time_us,
-                trk,
-                channel.as_int(),
-                message,
-                true,
-                shift_key,
-                left_key,
-                right_key,
-            ),
-            _ => None,
-        })
-        .inspect(|e| trace!("{:?}", e))
-        .collect::<Vec<_>>();
-
     trace!("output");
-    let midi_out = MidiOutput::new("My Test Output")?;
+    let midi_out = MidiOutput::new("Rusthesia")?;
     // Get an output port (read from console if multiple are available)
     let out_port = match midi_out.port_count() {
         0 => return Err("no output port found".into()),
@@ -192,9 +128,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
     };
     drop(midi_out);
 
-    let sequencer = midi_sequencer::MidiSequencer::new(out_port, play_events);
+    let sequencer = midi_sequencer::MidiSequencer::new(out_port);
 
-    if show_tracks.len() == 0 {
+    if control.show_events_len() == 0 {
         sequencer.play(0);
         loop {
             sleep(Duration::from_millis(1000));
@@ -275,7 +211,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 piano_keyboard::KeyboardBuilder::new()
                     .set_width(rec.width() as u16)?
                     .white_black_gap_present(true)
-                    .set_most_left_right_white_keys(left_key, right_key)?
+                    .set_most_left_right_white_keys(control.left_key(), 
+                                                    control.right_key())?
                     .build2d(),
             );
         }
@@ -303,7 +240,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
             // Texture 2.. are for waterfall.
             //
-            let maxtime_us = show_events[show_events.len() - 1].0;
+            let maxtime_us = control.show_events().unwrap()[control.show_events_len() - 1].0;
             let rows = (maxtime_us * rows_per_s as u64 + 999_999) / 1_000_000;
             let nr_of_textures =
                 ((rows + waterfall_net_height as u64 - 1) / waterfall_net_height as u64) as u32;
@@ -325,7 +262,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         waterfall_net_height,
                         waterfall_overlap,
                         rows_per_s,
-                        &show_events,
+                        &control.show_events().unwrap(),
                     );
                 })?;
                 textures.push(texture);
@@ -356,7 +293,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             &keyboard,
             rec.height() - keyboard.height as u32 - 1,
             pos_us,
-            &show_events,
+            &control.show_events().unwrap(),
         );
         for (src_rec, dst_rec) in pressed_rectangles.into_iter() {
             canvas.copy(&textures[1], src_rec, dst_rec)?;
