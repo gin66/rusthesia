@@ -362,8 +362,8 @@ impl<'a> AppControl<'a> {
         if let Some(base_time) = self.base_time.as_ref() {
             let elapsed = base_time.elapsed();
             let elapsed_us = elapsed.subsec_micros();
-            let rem_us = self.ms_per_frame() * 1_000 - elapsed_us
-                            % (self.ms_per_frame() * 1_000);
+            let us_per_frame = self.ms_per_frame() * 1_000;
+            let rem_us = us_per_frame - elapsed_us % us_per_frame;
             let rem_dur = Duration::new(0, rem_us * 1_000);
             self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
         }
@@ -380,10 +380,10 @@ impl<'a> AppControl<'a> {
             let curr_frame = elapsed_us / us_per_frame;
             let lost_frames = curr_frame - self.last_frame;
             self.last_frame = curr_frame;
-            if  lost_frames > 0 {
-                warn!("{} FRAME(S) LOST",lost_frames);
+            if  lost_frames > 1 {
+                warn!("{} FRAME(S) LOST",lost_frames - 1);
             }
-            (elapsed_us -  curr_frame * us_per_frame) as u32
+            (us_per_frame - (elapsed_us -  curr_frame * us_per_frame)) as u32
         }
         else {
             0

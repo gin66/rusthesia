@@ -247,6 +247,7 @@ pub fn copy_waterfall_to_screen(
 
         let copy_row_top = row_top.max(tex_row_top);
         let copy_row_bottom = row_bottom.min(tex_row_bottom);
+        if false {
         trace!(
             "Texture {}: Overlap texture {}-{}<>requested area {}-{} => {}-{}",
             i,
@@ -257,6 +258,7 @@ pub fn copy_waterfall_to_screen(
             copy_row_top,
             copy_row_bottom
         );
+        }
 
         if copy_row_top > copy_row_bottom {
             continue;
