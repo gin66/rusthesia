@@ -120,6 +120,7 @@ pub struct AppControl<'a> {
     time_keeper: Option<TimeListener>,
 }
 impl<'a> AppControl<'a> {
+    #[allow(dead_code)]
     pub fn new() -> AppControl<'a> {
         let scroller = Scroller::new(5_000_000.0);
         AppControl {
@@ -322,9 +323,9 @@ impl<'a> AppControl<'a> {
     pub fn verbosity(&self) -> bool {
         self.verbose
     }
-    pub fn shift_key(&self) -> i8 {
-        self.shift_key
-    }
+    //pub fn shift_key(&self) -> i8 {
+    //    self.shift_key
+    //}
     pub fn left_key(&self) -> u8 {
         self.left_key
     }
@@ -339,6 +340,16 @@ impl<'a> AppControl<'a> {
     }
     pub fn ms_per_frame(&self) -> u32 {
         self.ms_per_frame
+    }
+    pub fn seq_is_finished(&mut self) -> bool {
+        if let Some(seq) = self.sequencer.take() {
+            let finished = seq.is_finished();
+            self.sequencer = Some(seq);
+            finished
+        }
+        else {
+            true
+        }
     }
     pub fn show_events(&self) -> Option<&Vec<RawMidiTuple>> {
         self.show_events.as_ref()

@@ -72,7 +72,6 @@ enum SequencerState {
 }
 
 struct MidiSequencerThread {
-    out_port: Option<usize>,
     control: mpsc::Receiver<MidiSequencerCommand>,
     events: Vec<RawMidiTuple>,
     time_control: TimeController,
@@ -83,7 +82,6 @@ impl MidiSequencerThread {
         time_control: TimeController,
     ) -> MidiSequencerThread {
         MidiSequencerThread {
-            out_port: None,
             control,
             events: vec![],
             time_control,
@@ -125,7 +123,7 @@ impl MidiSequencerThread {
                 },
                 Stopped => match self.control.recv() {
                     Err(mpsc::RecvError) => break,
-                    Ok(MidiSequencerCommand::Connect(out_port)) => panic!("Not connected"),
+                    Ok(MidiSequencerCommand::Connect(_out_port)) => panic!("Not connected"),
                     Ok(MidiSequencerCommand::Ping) => Stopped,
                     Ok(MidiSequencerCommand::Play(pos_us)) => StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {
@@ -145,7 +143,7 @@ impl MidiSequencerThread {
                 Playing => match self.control.try_recv() {
                     Err(mpsc::TryRecvError::Disconnected) => break,
                     Err(mpsc::TryRecvError::Empty) => Playing,
-                    Ok(MidiSequencerCommand::Connect(out_port)) => panic!("Not connected"),
+                    Ok(MidiSequencerCommand::Connect(_out_port)) => panic!("Not connected"),
                     Ok(MidiSequencerCommand::Ping) => Playing,
                     Ok(MidiSequencerCommand::Play(pos_us)) => StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {

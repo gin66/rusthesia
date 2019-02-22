@@ -7,9 +7,26 @@ use piano_keyboard;
 
 use crate::midi_sequencer;
 
-fn trk2col(trk: usize, key: u32) -> Color {
-    match (trk % 2, true) {
-        //is_white(key)) {
+fn is_white(key: u8) -> bool {
+    match key % 12 {
+        0 => true,
+        1 => false,
+        2 => true,
+        3 => false,
+        4 => true,
+        5 => true,
+        6 => false,
+        7 => true,
+        8 => false,
+        9 => true,
+        10 => false,
+        11 => true,
+        _ => panic!("Cannot happen")
+    }
+}
+
+fn trk2col(trk: usize, key: u8) -> Color {
+    match (trk % 2, is_white(key)) {
         (0, true) => Color::RGB(0, 255, 255),
         (0, false) => Color::RGB(0, 200, 200),
         (_, true) => Color::RGB(255, 0, 255),
@@ -121,7 +138,7 @@ pub fn get_pressed_key_rectangles(
 pub fn draw_waterfall(
     keyboard: &piano_keyboard::Keyboard2d,
     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-    i: u32,
+    _i: u32,
     bottom_row: u32,
     net_rows: u32,
     overlap: u32,
@@ -159,7 +176,8 @@ pub fn draw_waterfall(
         let sel_key = left_key + i as u8;
         let mut opt_start = None;
         let mut opt_end = None;
-        for (time, _, evt) in show_events.iter() {
+        for (time, trk, evt) in show_events.iter() {
+            let col = trk2col(*trk, sel_key);
             match evt {
                 midi_sequencer::MidiEvent::NoteOn(_channel, key, pressure)
                     if *key == sel_key && *pressure > 0 =>
@@ -205,7 +223,7 @@ pub fn draw_waterfall(
                             rec.right() as i16,
                             rec.top() as i16 + rounding as i16 / 2 - 1,
                             rounding,
-                            Color::RGB(255, 255, 255),
+                            col,
                         )
                         .unwrap();
                     opt_start = None;

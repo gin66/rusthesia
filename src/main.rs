@@ -160,6 +160,9 @@ fn main() -> Result<(), Box<std::error::Error>> {
     control.fix_base_time();
     //sequencer.play(-3_000_000);
     'running: loop {
+        if control.seq_is_finished() {
+            break;
+        }
         let rec = canvas.viewport();
         let width = rec.width();
         let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
