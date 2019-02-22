@@ -99,6 +99,30 @@ Works, but need to create a concert with keyboard per channel, which is not very
 As rusthesia offered to use my Roland RD-64 as output, I have given it a try.
 Very positively surprised, that it works pretty well. Even can play along by hand to the song.
 
+#### fluidsynth
+
+Good choice too is to use fluidsynth
+
+```bash
+brew install fluid-synth
+```
+
+For playing need still a soundfont .sf2 file, which can be found in the internet. Start synthesizer with:
+
+```bash
+fluidsynth your_soundfound.sf2
+```
+
+Now can start rusthesia and the midi-output should appear.
+
+```
+Available output ports:
+0: IAC-Treiber IAC-Bus 1
+1: FluidSynth virtual port (3776)
+```
+
+Just enter 1 for this case.
+
 ### Linux
 
 As per info from Samuel Da Mota, the code works on linux:
