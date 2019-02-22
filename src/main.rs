@@ -163,6 +163,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if control.seq_is_finished() {
             break;
         }
+        control.next_loop();
+        if control.need_redraw() {
+            textures.clear();
+        }
         let rec = canvas.viewport();
         let width = rec.width();
         let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even

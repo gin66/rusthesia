@@ -401,5 +401,13 @@ impl<'a> AppControl<'a> {
             0
         }
     }
+    pub fn next_loop(&mut self) {
+        self.pos_us = self.time_keeper.as_ref().unwrap().get_pos_us();
+    }
+    pub fn need_redraw(&mut self) -> bool {
+        let need = self.need_redraw_textures;
+        self.need_redraw_textures = false;
+        need
+    }
 }
 
