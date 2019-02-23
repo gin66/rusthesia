@@ -53,68 +53,67 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let nr_of_keys = control.right_key() - control.left_key() + 1;
 
-    let smf_buf = midly::SmfBuffer::open(&control.midi_fname()).unwrap();
-    let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
-    if !control.is_quiet() {
-        for _evt in container.iter() {
-            //trace!("{:?}", evt);
-        }
-        for evt in container.iter().timed(&container.header().timing) {
-            trace!("timed: {:?}", evt);
-        }
-    }
+    //control.read_midi_file();
+    //if !control.is_quiet() {
+    //    for _evt in container.iter() {
+    //        //trace!("{:?}", evt);
+    //    }
+    //    for evt in container.iter().timed(&container.header().timing) {
+    //        trace!("timed: {:?}", evt);
+    //    }
+    //}
 
     if control.list_command() {
-        for i in 0..container.nr_of_tracks() {
-            println!("Track {}:", i);
-            let mut used_channels = vec![false; 16];
-            for evt in container.iter().filter(|e| e.1 == i) {
-                match evt.2 {
-                    midly::EventKind::Midi {
-                        channel: c,
-                        message: _m,
-                    } => {
-                        used_channels[c.as_int() as usize] = true;
-                    }
-                    midly::EventKind::SysEx(_) => (),
-                    midly::EventKind::Escape(_) => (),
-                    midly::EventKind::Meta(mm) => match mm {
-                        midly::MetaMessage::Text(raw) => {
-                            println!("  Text: {}", String::from_utf8_lossy(raw));
-                        }
-                        midly::MetaMessage::ProgramName(raw) => {
-                            println!("  Program name: {}", String::from_utf8_lossy(raw));
-                        }
-                        midly::MetaMessage::DeviceName(raw) => {
-                            println!("  Device name: {}", String::from_utf8_lossy(raw));
-                        }
-                        midly::MetaMessage::InstrumentName(raw) => {
-                            println!("  Instrument name: {}", String::from_utf8_lossy(raw));
-                        }
-                        midly::MetaMessage::TrackName(raw) => {
-                            println!("  Track name: {}", String::from_utf8_lossy(raw));
-                        }
-                        midly::MetaMessage::MidiChannel(channel) => {
-                            println!("  Channel: {}", channel.as_int());
-                        }
-                        midly::MetaMessage::Tempo(ms_per_beat) => {
-                            trace!("  Tempo: {:?}", ms_per_beat);
-                        }
-                        midly::MetaMessage::EndOfTrack => (),
-                        mm => warn!("Not treated meta message: {:?}", mm),
-                    },
-                }
-            }
-            println!(
-                "  Used channels: {:?}",
-                used_channels
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, v)| **v)
-                    .map(|(c, _)| c)
-                    .collect::<Vec<_>>()
-            );
-        }
+    //    for i in 0..container.nr_of_tracks() {
+    //        println!("Track {}:", i);
+    //        let mut used_channels = vec![false; 16];
+    //        for evt in container.iter().filter(|e| e.1 == i) {
+    //            match evt.2 {
+    //                midly::EventKind::Midi {
+    //                    channel: c,
+    //                    message: _m,
+    //                } => {
+    //                    used_channels[c.as_int() as usize] = true;
+    //                }
+    //                midly::EventKind::SysEx(_) => (),
+    //                midly::EventKind::Escape(_) => (),
+    //                midly::EventKind::Meta(mm) => match mm {
+    //                    midly::MetaMessage::Text(raw) => {
+    //                        println!("  Text: {}", String::from_utf8_lossy(raw));
+    //                    }
+    //                    midly::MetaMessage::ProgramName(raw) => {
+    //                        println!("  Program name: {}", String::from_utf8_lossy(raw));
+    //                    }
+    //                    midly::MetaMessage::DeviceName(raw) => {
+    //                        println!("  Device name: {}", String::from_utf8_lossy(raw));
+    //                    }
+    //                    midly::MetaMessage::InstrumentName(raw) => {
+    //                        println!("  Instrument name: {}", String::from_utf8_lossy(raw));
+    //                    }
+    //                    midly::MetaMessage::TrackName(raw) => {
+    //                        println!("  Track name: {}", String::from_utf8_lossy(raw));
+    //                    }
+    //                    midly::MetaMessage::MidiChannel(channel) => {
+    //                        println!("  Channel: {}", channel.as_int());
+    //                    }
+    //                    midly::MetaMessage::Tempo(ms_per_beat) => {
+    //                        trace!("  Tempo: {:?}", ms_per_beat);
+    //                    }
+    //                    midly::MetaMessage::EndOfTrack => (),
+    //                    mm => warn!("Not treated meta message: {:?}", mm),
+    //                },
+    //            }
+    //        }
+    //        println!(
+    //            "  Used channels: {:?}",
+    //            used_channels
+    //                .iter()
+    //                .enumerate()
+    //                .filter(|(_, v)| **v)
+    //                .map(|(c, _)| c)
+    //                .collect::<Vec<_>>()
+    //        );
+    //    }
         return Ok(());
     }
 
@@ -128,10 +127,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         //}
         //return Ok(());
     //}
-    control.container = Some(container);
     control.create_connected_sequencer()?;
-    control.tune_up(true);
-    control.tune_up(false);
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -192,108 +188,108 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if control.need_redraw() {
             textures.clear();
         }
-        let rec = canvas.viewport();
-        let width = rec.width();
-        let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
-        let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
+        if control.show_events().is_some() {
+            let rec = canvas.viewport();
+            let width = rec.width();
+            let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
+            let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
 
-        if opt_keyboard.is_some() {
-            if opt_keyboard.as_ref().unwrap().width != width as u16 {
-                opt_keyboard = None;
+            if opt_keyboard.is_some() {
+                if opt_keyboard.as_ref().unwrap().width != width as u16 {
+                    opt_keyboard = None;
+                }
             }
-        }
-        if opt_keyboard.is_none() {
-            trace!("Create Keyboard");
-            textures.clear();
-            opt_keyboard = Some(
-                piano_keyboard::KeyboardBuilder::new()
-                    .set_width(rec.width() as u16)?
-                    .white_black_gap_present(true)
-                    .set_most_left_right_white_keys(control.left_key(), 
-                                                    control.right_key())?
-                    .build2d(),
+            if opt_keyboard.is_none() {
+                trace!("Create Keyboard");
+                textures.clear();
+                opt_keyboard = Some(
+                    piano_keyboard::KeyboardBuilder::new()
+                        .set_width(rec.width() as u16)?
+                        .white_black_gap_present(true)
+                        .set_most_left_right_white_keys(control.left_key(), 
+                                                        control.right_key())?
+                        .build2d(),
+                );
+            }
+            let keyboard = opt_keyboard.as_ref().unwrap();
+            if width != keyboard.width as u32 {
+                textures.clear();
+            }
+
+            if textures.len() == 0 {
+                trace!("Create keyboard textures");
+                // Texture 0 are for unpressed and 1 for pressed keys
+                for pressed in vec![false, true].drain(..) {
+                    let mut texture = texture_creator
+                        .create_texture_target(
+                            texture_creator.default_pixel_format(),
+                            width,
+                            keyboard.height as u32,
+                        )
+                        .unwrap();
+                    canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                        draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
+                    })?;
+                    textures.push(texture);
+                }
+
+                // Texture 2.. are for waterfall.
+                //
+                let maxtime_us = control.show_events().unwrap()[control.show_events_len() - 1].0;
+                let rows = (maxtime_us * rows_per_s as u64 + 999_999) / 1_000_000;
+                let nr_of_textures =
+                    ((rows + waterfall_net_height as u64 - 1) / waterfall_net_height as u64) as u32;
+                trace!("Needed rows/textures: {}/{}", rows, nr_of_textures);
+                for i in 0..nr_of_textures {
+                    let mut texture = texture_creator
+                        .create_texture_target(
+                            texture_creator.default_pixel_format(),
+                            width,
+                            waterfall_tex_height,
+                        )
+                        .unwrap();
+                    canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                        draw_engine::draw_waterfall(
+                            keyboard,
+                            tex_canvas,
+                            i,
+                            i * waterfall_net_height,
+                            waterfall_net_height,
+                            waterfall_overlap,
+                            rows_per_s,
+                            &control.show_events().unwrap(),
+                        );
+                    })?;
+                    textures.push(texture);
+                }
+            }
+
+            let pos_us = control.get_pos_us_at_next_frame();
+
+            // Clear canvas
+            canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
+            canvas.clear();
+
+            // Copy keyboard with unpressed keys
+            let dst_rec = sdl2::rect::Rect::new(
+                0,
+                (rec.height() - keyboard.height as u32 - 1) as i32,
+                width,
+                keyboard.height as u32,
             );
-        }
-        let keyboard = opt_keyboard.as_ref().unwrap();
-        if width != keyboard.width as u32 {
-            textures.clear();
-        }
+            canvas.copy(&textures[0], None, dst_rec)?;
 
-        if textures.len() == 0 {
-            trace!("Create keyboard textures");
-            // Texture 0 are for unpressed and 1 for pressed keys
-            for pressed in vec![false, true].drain(..) {
-                let mut texture = texture_creator
-                    .create_texture_target(
-                        texture_creator.default_pixel_format(),
-                        width,
-                        keyboard.height as u32,
-                    )
-                    .unwrap();
-                canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                    draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
-                })?;
-                textures.push(texture);
+            let pressed_rectangles = draw_engine::get_pressed_key_rectangles(
+                &keyboard,
+                rec.height() - keyboard.height as u32 - 1,
+                pos_us,
+                &control.show_events().unwrap(),
+            );
+            for (src_rec, dst_rec) in pressed_rectangles.into_iter() {
+                canvas.copy(&textures[1], src_rec, dst_rec)?;
             }
 
-            // Texture 2.. are for waterfall.
-            //
-            let maxtime_us = control.show_events().unwrap()[control.show_events_len() - 1].0;
-            let rows = (maxtime_us * rows_per_s as u64 + 999_999) / 1_000_000;
-            let nr_of_textures =
-                ((rows + waterfall_net_height as u64 - 1) / waterfall_net_height as u64) as u32;
-            trace!("Needed rows/textures: {}/{}", rows, nr_of_textures);
-            for i in 0..nr_of_textures {
-                let mut texture = texture_creator
-                    .create_texture_target(
-                        texture_creator.default_pixel_format(),
-                        width,
-                        waterfall_tex_height,
-                    )
-                    .unwrap();
-                canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                    draw_engine::draw_waterfall(
-                        keyboard,
-                        tex_canvas,
-                        i,
-                        i * waterfall_net_height,
-                        waterfall_net_height,
-                        waterfall_overlap,
-                        rows_per_s,
-                        &control.show_events().unwrap(),
-                    );
-                })?;
-                textures.push(texture);
-            }
-        }
-
-        let pos_us = control.get_pos_us_at_next_frame();
-
-        // Clear canvas
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
-        canvas.clear();
-
-        // Copy keyboard with unpressed keys
-        let dst_rec = sdl2::rect::Rect::new(
-            0,
-            (rec.height() - keyboard.height as u32 - 1) as i32,
-            width,
-            keyboard.height as u32,
-        );
-        canvas.copy(&textures[0], None, dst_rec)?;
-
-        let pressed_rectangles = draw_engine::get_pressed_key_rectangles(
-            &keyboard,
-            rec.height() - keyboard.height as u32 - 1,
-            pos_us,
-            &control.show_events().unwrap(),
-        );
-        for (src_rec, dst_rec) in pressed_rectangles.into_iter() {
-            canvas.copy(&textures[1], src_rec, dst_rec)?;
-        }
-
-        trace!(target: EV,"before draw_engine::copy_waterfall_to_screen");
-        if true {
+            trace!(target: EV,"before draw_engine::copy_waterfall_to_screen");
             draw_engine::copy_waterfall_to_screen(
                 &textures[2..],
                 &mut canvas,

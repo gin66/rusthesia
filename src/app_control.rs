@@ -1,4 +1,6 @@
 use std::time::{Instant,Duration};
+use std::sync::mpsc;
+use std::thread;
 
 use log::*;
 use midly;
@@ -13,7 +15,19 @@ use crate::time_controller::TimeListenerTrait;
 use crate::time_controller::TimeListener;
 use crate::scroller::Scroller;
 
-pub fn transposed_message(
+const WK: &str = &"worker";
+
+enum WorkerResult {
+    EventsLoaded(Result<(Vec<RawMidiTuple>,Vec<RawMidiTuple>),std::io::Error>),
+}
+
+enum AppState {
+    NeedEventLoading,
+    WaitForEventLoading,
+    Running
+}
+
+fn transposed_message(
     time_us: u64,
     trk: usize,
     channel: u8,
@@ -96,7 +110,8 @@ pub fn transposed_message(
     }
 }
 
-pub struct AppControl<'a> {
+pub struct AppControl {
+    state: Option<AppState>,
     midi_fname: String,
     command_list_tracks: bool,
     quiet: bool,
@@ -117,14 +132,18 @@ pub struct AppControl<'a> {
     show_events: Option<Vec<RawMidiTuple>>,
     sequencer: Option<MidiSequencer>,
     scroller: Scroller,
-    pub container: Option<MidiContainer<'a>>,
     time_keeper: Option<TimeListener>,
+    rx: mpsc::Receiver<WorkerResult>,
+    tx: mpsc::Sender<WorkerResult>,
+    worker: Option<thread::JoinHandle<()>>,
 }
-impl<'a> AppControl<'a> {
+impl AppControl {
     #[allow(dead_code)]
-    pub fn new() -> AppControl<'a> {
+    pub fn new() -> AppControl {
         let scroller = Scroller::new(5_000_000.0);
+        let (tx, rx) = mpsc::channel();
         AppControl {
+            state: None,
             midi_fname: "".to_string(),
             command_list_tracks: false,
             quiet: false,
@@ -145,11 +164,14 @@ impl<'a> AppControl<'a> {
             show_events: None,
             sequencer: None,
             scroller,
-            container: None,
             time_keeper: None,
+            rx,
+            tx,
+            worker: None,
         }
     }
-    pub fn from_clap(matches: ArgMatches) -> AppControl<'a> {
+    pub fn from_clap(matches: ArgMatches) -> AppControl {
+        let (tx, rx) = mpsc::channel();
         let quiet = matches.is_present("quiet");
         let debug = if matches.is_present("debug") {
             Some(values_t!(matches.values_of("debug"), String)
@@ -174,6 +196,7 @@ impl<'a> AppControl<'a> {
         let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());
         let scroller = Scroller::new(5_000_000.0);
         AppControl {
+            state: None,
             midi_fname,
             command_list_tracks: list_tracks,
             quiet,
@@ -194,8 +217,10 @@ impl<'a> AppControl<'a> {
             show_events: None,
             sequencer: None,
             scroller,
-            container: None,
             time_keeper: None,
+            rx,
+            tx,
+            worker: None,
         }
     }
     pub fn toggle_play(&mut self) {
@@ -247,51 +272,7 @@ impl<'a> AppControl<'a> {
         };
         if let Some(seq) = self.sequencer.take() {
             seq.stop();
-            if let Some(container) = self.container.take() {
-                let show_events = container
-                    .iter()
-                    .timed(&container.header().timing)
-                    .filter(|(_time_us, trk, _evt)| self.show_tracks.contains(trk))
-                    .filter_map(|(time_us, trk, evt)| match evt {
-                        midly::EventKind::Midi { channel, message } => {
-                            transposed_message(
-                                time_us,
-                                trk,
-                                channel.as_int(),
-                                &message,
-                                false,
-                                self.shift_key,
-                                self.left_key,
-                                self.right_key)
-                        },
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                self.show_events = Some(show_events);
-                let play_events = container
-                    .iter()
-                    .timed(&container.header().timing)
-                    .filter(|(_time_us, trk, _evt)| self.play_tracks.contains(trk))
-                    .filter_map(|(time_us, trk, evt)| match evt {
-                        midly::EventKind::Midi { channel, message } => {
-                            transposed_message(
-                                time_us,
-                                trk,
-                                channel.as_int(),
-                                &message,
-                                true,
-                                self.shift_key,
-                                self.left_key,
-                                self.right_key)
-                        },
-                        _ => None,
-                    })
-                    .inspect(|e| trace!("{:?}", e))
-                    .collect::<Vec<_>>();
-                seq.set_midi_data(play_events);
-                self.container = Some(container);
-            }
-            seq.play(self.pos_us);
+            self.state = Some(AppState::NeedEventLoading);
             self.sequencer = Some(seq);
         }
         self.need_redraw_textures = true;
@@ -414,8 +395,103 @@ impl<'a> AppControl<'a> {
             0
         }
     }
+    pub fn read_midi_file(midi_fname: &str,
+                          left_key: u8,
+                          right_key: u8,
+                          shift_key: i8,
+                          show_tracks: Vec<usize>,
+                          play_tracks: Vec<usize>)
+                -> Result<(Vec<RawMidiTuple>,Vec<RawMidiTuple>),std::io::Error> {
+        let smf_buf = midly::SmfBuffer::open(midi_fname)?;
+        let container = MidiContainer::from_buf(&smf_buf)?;
+        let show_events = container
+            .iter()
+            .timed(&container.header().timing)
+            .filter(|(_time_us, trk, _evt)| show_tracks.contains(trk))
+            .filter_map(|(time_us, trk, evt)| match evt {
+                midly::EventKind::Midi { channel, message } => {
+                    transposed_message(
+                        time_us,
+                        trk,
+                        channel.as_int(),
+                        &message,
+                        false,
+                        shift_key,
+                        left_key,
+                        right_key)
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let play_events = container
+            .iter()
+            .timed(&container.header().timing)
+            .filter(|(_time_us, trk, _evt)| play_tracks.contains(trk))
+            .filter_map(|(time_us, trk, evt)| match evt {
+                midly::EventKind::Midi { channel, message } => {
+                    transposed_message(
+                        time_us,
+                        trk,
+                        channel.as_int(),
+                        &message,
+                        true,
+                        shift_key,
+                        left_key,
+                        right_key)
+                },
+                _ => None,
+            })
+            .inspect(|e| trace!("{:?}", e))
+            .collect::<Vec<_>>();
+        Ok((show_events,play_events))
+    }
     pub fn next_loop(&mut self) {
         self.pos_us = self.time_keeper.as_ref().unwrap().get_pos_us();
+        let th_result = self.rx.try_recv();
+        if th_result.is_ok() {
+            trace!(target: WK, "Join worker");
+            self.worker.take().unwrap().join()
+                .expect("something went wrong with worker thread");
+            trace!(target: WK, "Join worker done");
+        }
+        let s = match (self.state.take(),th_result) {
+            (Some(_),Ok(WorkerResult::EventsLoaded(Ok((show_events,play_events))))) => {
+                trace!(target: WK, "Events loaded");
+                self.show_events = Some(show_events);
+                if let Some(seq) = self.sequencer.take() {
+                    seq.set_midi_data(play_events);
+                    seq.play(self.pos_us);
+                    self.sequencer = Some(seq);
+                }
+                AppState::Running
+            },
+            (Some(AppState::NeedEventLoading),_) => {
+                trace!(target: WK, "Start thread for reading the midi file");
+                let tx = self.tx.clone();
+                let midi_fname = self.midi_fname.clone();
+                let left_key = self.left_key;
+                let right_key = self.right_key;
+                let shift_key = self.shift_key;
+                let show_tracks = self.show_tracks.clone();
+                let play_tracks = self.play_tracks.clone();
+                let jh = thread::spawn(move ||{
+                    let res = AppControl::read_midi_file(
+                                    &midi_fname,
+                                    left_key,
+                                    right_key,
+                                    shift_key,
+                                    show_tracks,
+                                    play_tracks);
+                    trace!(target: WK, "Send events to main");
+                    tx.send(WorkerResult::EventsLoaded(res)).unwrap();
+                });
+                self.worker = Some(jh);
+                AppState::WaitForEventLoading
+            },
+            (None,_) => AppState::NeedEventLoading,
+            (_,_) => AppState::Running,
+        };
+        self.state = Some(s);
     }
     pub fn need_redraw(&mut self) -> bool {
         let need = self.need_redraw_textures;
