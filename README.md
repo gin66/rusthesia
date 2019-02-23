@@ -223,6 +223,27 @@ Not sure if this is due to intel graphic driver or sdl library or ...
 
 Funnily on macos the event loop can be blocked by poll_event for a long time, which is weird. Luckily this appears to happen only for Window events, which are seldom.
 
+Update:
+After changing from Intel acceleration mode driver to Intel default driver the measurements are outperforming macos:
+
+```
+Sleep time 34 ms - 1 times
+Sleep time 37 ms - 1 times
+Sleep time 38 ms - 3 times
+Sleep time 39 ms - 6330 times
+Lost frames: 1
+min=     0us avg=     5us max=    58us control at loop start
+min=     0us avg=     2us max=    34us keyboard built
+min=     0us avg=     0us max=  1831us keyboard drawn
+min=     3us avg=    37us max=   393us canvas cleared
+min=    10us avg=    65us max=   251us copy keyboard to canvas
+min=     0us avg=    41us max= 44905us waterfall and pressed keys drawn
+min=     5us avg=    19us max=   326us event loop
+min= 34978us avg= 39624us max= 40005us sleep
+min=    47us avg=   207us max=   432us canvas presented
+```
+
+
 ## Data to Marche_aux_Flambeaux.mid
 
 * 115 bars
