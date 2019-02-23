@@ -12,7 +12,6 @@ readme = "README.md"
 documentation = "https://docs.rs/releases/search?query=rusthesia"
 
 [dependencies]
-log = "0.4"
 midir = "0.5"
 midly = "0.1"
 clap = "2.32"
@@ -29,3 +28,8 @@ thread_local = "0.3"
 version = "0.31"
 default-features = false
 features = ["gfx","ttf"]
+
+[dependencies.log]
+version = "0.4"
+features = ["std"]
+

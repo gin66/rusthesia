@@ -346,8 +346,8 @@ impl Log for StdErrLog {
                 let _ = write!(writer, "{} - ", Local::now().format(fmt));
             }
             Timestamp::Microsecond => {
-                let fmt = "%Y-%m-%dT%H:%M:%S%.6f%:z";
-                let _ = write!(writer, "{} - ", Local::now().format(fmt));
+                let fmt = "%H:%M:%S%.6f";//HACK
+                let _ = write!(writer, "{}:", Local::now().format(fmt));
             }
             Timestamp::Nanosecond => {
                 let fmt = "%Y-%m-%dT%H:%M:%S%.9f%:z";
@@ -355,7 +355,7 @@ impl Log for StdErrLog {
             }
             Timestamp::Off => {}
         }
-        let _ = writeln!(writer, "{} - {}", record.level(), record.args());
+        let _ = writeln!(writer, "{}:{}:{}", record.level(), record.target(), record.args());
         {
             writer.get_mut().reset().expect("failed to reset the color");
         }
@@ -412,6 +412,7 @@ impl StdErrLog {
     }
 
     /// Enables or disables the use of color in log messages
+    #[allow(dead_code)]
     pub fn color(&mut self, choice: ColorChoice) -> &mut StdErrLog {
         self.color_choice = choice;
         self
