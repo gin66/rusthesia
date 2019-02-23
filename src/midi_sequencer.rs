@@ -75,16 +75,19 @@ struct MidiSequencerThread {
     control: mpsc::Receiver<MidiSequencerCommand>,
     events: Vec<RawMidiTuple>,
     time_control: TimeController,
+    exit_on_eof: bool,
 }
 impl MidiSequencerThread {
     fn new(
         control: mpsc::Receiver<MidiSequencerCommand>,
         time_control: TimeController,
+        exit_on_eof: bool,
     ) -> MidiSequencerThread {
         MidiSequencerThread {
             control,
             events: vec![],
             time_control,
+            exit_on_eof,
         }
     }
     fn run(&mut self) {
@@ -186,6 +189,9 @@ impl MidiSequencerThread {
                     }
                     if idx >= self.events.len() {
                         self.time_control.stop();
+                        if self.exit_on_eof {
+                            break;
+                        }
                         EOF
                     }
                     else {
@@ -209,6 +215,9 @@ impl MidiSequencerThread {
                     }
                     if idx >= self.events.len() {
                         self.time_control.stop();
+                        if self.exit_on_eof {
+                            break;
+                        }
                         EOF
                     }
                     else {
@@ -237,11 +246,11 @@ pub struct MidiSequencer {
 }
 
 impl MidiSequencer {
-    pub fn new() -> MidiSequencer {
+    pub fn new(exit_on_eof: bool) -> MidiSequencer {
         let (tx, rx) = mpsc::channel();
         let controller = TimeController::new();
         let time_listener = controller.new_listener();
-        thread::spawn(move || MidiSequencerThread::new(rx, controller).run());
+        thread::spawn(move || MidiSequencerThread::new(rx, controller, exit_on_eof).run());
         MidiSequencer {
             control: tx,
             time_listener,

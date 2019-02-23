@@ -55,19 +55,28 @@ fn main() -> Result<(), Box<std::error::Error>> {
         return midi_container::list_command(control.is_quiet(),&control.midi_fname());
     }
 
-    let nr_of_keys = control.right_key() - control.left_key() + 1;
-    //if control.show_events_len() == 0 {
-        //sequencer.play(0);
-        //loop {
-        //    sleep(Duration::from_millis(1000));
-        //    if sequencer.is_finished() {
-        //        break;
-        //    }
-        //}
-        //return Ok(());
-    //}
-    control.create_connected_sequencer()?;
+    let only_midi_player = control.show_tracks().len() == 0;
 
+    control.create_connected_sequencer(only_midi_player)?;
+    if only_midi_player {
+        let (_,play_events) = app_control::AppControl::read_midi_file(
+                                    &control.midi_fname(),
+                                    control.left_key(),
+                                    control.right_key(),
+                                    control.shift_key(),
+                                    control.show_tracks().clone(),
+                                    control.play_tracks().clone())?;
+        control.play_midi_data(play_events);
+        loop {
+            sleep(Duration::from_millis(1000));
+            if control.seq_is_finished() {
+                break;
+            }
+        }
+        return Ok(());
+    }
+
+    let nr_of_keys = control.right_key() - control.left_key() + 1;
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     info!(target: SDL,

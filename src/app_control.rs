@@ -318,9 +318,9 @@ impl AppControl {
     pub fn verbosity(&self) -> usize {
         self.verbose
     }
-    //pub fn shift_key(&self) -> i8 {
-    //    self.shift_key
-    //}
+    pub fn shift_key(&self) -> i8 {
+        self.shift_key
+    }
     pub fn left_key(&self) -> u8 {
         self.left_key
     }
@@ -335,6 +335,12 @@ impl AppControl {
     }
     pub fn ms_per_frame(&self) -> u32 {
         self.ms_per_frame
+    }
+    pub fn show_tracks(&self) -> &Vec<usize> {
+        &self.show_tracks
+    }
+    pub fn play_tracks(&self) -> &Vec<usize> {
+        &self.play_tracks
     }
     pub fn seq_is_finished(&mut self) -> bool {
         if let Some(seq) = self.sequencer.take() {
@@ -354,8 +360,9 @@ impl AppControl {
             .map(|events| events.len())
             .unwrap_or(0)
     }
-    pub fn create_connected_sequencer(&mut self) -> Result<(), Box<std::error::Error>> {
-        let mut sequencer = MidiSequencer::new();
+    pub fn create_connected_sequencer(&mut self,exit_on_eof: bool)
+                        -> Result<(), Box<std::error::Error>> {
+        let mut sequencer = MidiSequencer::new(exit_on_eof);
         sequencer.connect()?;
         self.time_keeper = Some(sequencer.get_new_listener());
         self.sequencer = Some(sequencer);
@@ -497,6 +504,13 @@ impl AppControl {
         let need = self.need_redraw_textures;
         self.need_redraw_textures = false;
         need
+    }
+    pub fn play_midi_data(&mut self, play_events: Vec<RawMidiTuple>) {
+        if let Some(seq) = self.sequencer.take() {
+            seq.set_midi_data(play_events);
+            seq.play(0);
+            self.sequencer = Some(seq);
+        }
     }
 }
 
