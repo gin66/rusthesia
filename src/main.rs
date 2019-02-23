@@ -233,16 +233,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
             let pos_us = control.get_pos_us_at_next_frame();
 
-            let pressed_rectangles = draw_engine::get_pressed_key_rectangles(
+            let draw_commands = draw_engine::get_pressed_key_rectangles(
                 &keyboard,
                 rec.height() - keyboard.height as u32 - 1,
                 pos_us,
                 &control.show_events().unwrap(),
             );
-            for (src_rec, dst_rec) in pressed_rectangles.into_iter() {
-                canvas.copy(&textures[1], src_rec, dst_rec)?;
+            for cmd in draw_commands.into_iter() {
+                match cmd {
+                    draw_engine::DrawCommand::CopyToScreen {
+                        src_texture, src_rect, dst_rect } => {
+                            canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
+                        }
+                }
             }
-
             trace!(target: EV, "before draw_engine::copy_waterfall_to_screen");
             draw_engine::copy_waterfall_to_screen(
                 &textures[2..],

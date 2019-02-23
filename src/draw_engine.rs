@@ -7,6 +7,14 @@ use piano_keyboard;
 
 use crate::midi_sequencer;
 
+pub enum DrawCommand {
+    CopyToScreen {
+        src_texture: usize,
+        src_rect: sdl2::rect::Rect,
+        dst_rect: sdl2::rect::Rect,
+    },
+}
+
 fn is_white(key: u8) -> bool {
     match key % 12 {
         0 => true,
@@ -73,7 +81,7 @@ pub fn get_pressed_key_rectangles(
     height_offset: u32,
     pos_us: i64,
     show_events: &Vec<(u64, usize, midi_sequencer::MidiEvent)>,
-) -> Vec<(sdl2::rect::Rect, sdl2::rect::Rect)> {
+) -> Vec<DrawCommand> {
     let nr_of_keys = keyboard.right_white_key - keyboard.left_white_key + 1;
     let mut pressed = vec![0; nr_of_keys as usize];
     let left_key = keyboard.left_white_key;
@@ -120,15 +128,20 @@ pub fn get_pressed_key_rectangles(
                 piano_keyboard::Element::BlackKey(ref r1) => vec![r1],
             };
             for r in rects.into_iter() {
-                let src_rec =
+                let src_rect =
                     sdl2::rect::Rect::new(r.x as i32, r.y as i32, r.width as u32, r.height as u32);
-                let dst_rec = sdl2::rect::Rect::new(
+                let dst_rect = sdl2::rect::Rect::new(
                     r.x as i32,
                     (r.y as u32 + height_offset) as i32,
                     r.width as u32,
                     r.height as u32,
                 );
-                highlight.push((src_rec, dst_rec));
+                let cmd = DrawCommand::CopyToScreen {
+                    src_texture: 1,
+                    src_rect,
+                    dst_rect,
+                };
+                highlight.push(cmd);
             }
         }
     }
