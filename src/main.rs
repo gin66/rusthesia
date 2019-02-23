@@ -275,24 +275,18 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     textures.push(texture);
                 }
             }
+        }
+        pf.sample("waterfall textures created and drawn");
 
+        let draw_commands = if control.show_events().is_some() {
             let pos_us = control.get_pos_us_at_next_frame();
 
-            let draw_commands = draw_engine::get_pressed_key_rectangles(
+            let mut draw_commands_1 = draw_engine::get_pressed_key_rectangles(
                 &keyboard,
                 rec.height() - keyboard.height as u32 - 1,
                 pos_us,
                 &control.show_events().unwrap());
-            for cmd in draw_commands.into_iter() {
-                match cmd {
-                    draw_engine::DrawCommand::CopyToScreen {
-                        src_texture, src_rect, dst_rect } => {
-                            canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
-                        }
-                }
-            }
-            trace!(target: EV, "before draw_engine::copy_waterfall_to_screen");
-            let draw_commands = draw_engine::copy_waterfall_to_screen(
+            let mut draw_commands_2 = draw_engine::copy_waterfall_to_screen(
                 textures.len()-2,
                 rec.width(),
                 rec.height() - keyboard.height as u32,
@@ -300,13 +294,21 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 waterfall_overlap,
                 rows_per_s,
                 pos_us);
-            for cmd in draw_commands.into_iter() {
-                match cmd {
-                    draw_engine::DrawCommand::CopyToScreen {
-                        src_texture, src_rect, dst_rect } => {
-                            canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
-                        }
-                }
+            draw_commands_1.append(&mut draw_commands_2);
+            draw_commands_1
+        }
+        else {
+            vec![]
+        };
+        pf.sample("waterfall and pressed keys commands generated");
+
+        trace!(target: EV, "before drawing to screen");
+        for cmd in draw_commands.into_iter() {
+            match cmd {
+                draw_engine::DrawCommand::CopyToScreen {
+                    src_texture, src_rect, dst_rect } => {
+                        canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
+                    }
             }
         }
         pf.sample("waterfall and pressed keys drawn");
