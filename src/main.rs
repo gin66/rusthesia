@@ -179,6 +179,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
+    let mut sleep_time_stats = vec![0; 100]; // millisecond resolution
+
     control.fix_base_time();
     //sequencer.play(-3_000_000);
     'running: loop {
@@ -305,7 +307,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         }
 
         trace!(target: EV,"before Eventloop");
-        let sleep_duration = loop {
+        let rem_us = loop {
             let rem_us = control.us_till_next_frame();
             if rem_us > 5000 {
                 if let Some(event) = event_pump.poll_event() {
@@ -316,9 +318,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     continue; // next event
                 }
             }
-            break Duration::new(0, rem_us as u32 * 1_000);
+            break rem_us;
         };
 
+        // update stats
+        let n = sleep_time_stats.len()-1;
+        sleep_time_stats[(rem_us as usize/1_000).min(n)] += 1;
+
+        let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
         trace!(target: EV,"before sleep {:?}", sleep_duration);
         std::thread::sleep(sleep_duration);
 
@@ -329,5 +336,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
         control.update_position_if_scrolling();
     }
     sleep(Duration::from_millis(150));
+
+    for i in 0..sleep_time_stats.len() {
+        if sleep_time_stats[i] > 0 {
+            info!(target:EV,
+                  "Sleep time {:.2} ms - {} times", i, sleep_time_stats[i]);
+        }
+    }
     Ok(())
 }
