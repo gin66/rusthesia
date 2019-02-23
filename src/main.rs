@@ -137,51 +137,66 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if control.need_redraw() {
             textures.clear();
         }
+        let rec = canvas.viewport();
+        let width = rec.width();
+        let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
+        let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
+
+        if opt_keyboard.is_some() {
+            if opt_keyboard.as_ref().unwrap().width != width as u16 {
+                opt_keyboard = None;
+            }
+        }
+        if opt_keyboard.is_none() {
+            trace!("Create Keyboard");
+            textures.clear();
+            opt_keyboard = Some(
+                piano_keyboard::KeyboardBuilder::new()
+                    .set_width(rec.width() as u16)?
+                    .white_black_gap_present(true)
+                    .set_most_left_right_white_keys(control.left_key(), 
+                                                    control.right_key())?
+                    .build2d(),
+            );
+        }
+        let keyboard = opt_keyboard.as_ref().unwrap();
+        if width != keyboard.width as u32 {
+            textures.clear();
+        }
+
+        if textures.len() == 0 {
+            trace!("Create keyboard textures");
+            // Texture 0 are for unpressed and 1 for pressed keys
+            for pressed in vec![false, true].drain(..) {
+                let mut texture = texture_creator
+                    .create_texture_target(
+                        texture_creator.default_pixel_format(),
+                        width,
+                        keyboard.height as u32,
+                    )
+                    .unwrap();
+                canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                    draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
+                })?;
+                textures.push(texture);
+            }
+        }
+
+        // Clear canvas
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
+        canvas.clear();
+
+        // Copy keyboard with unpressed keys
+        let dst_rec = sdl2::rect::Rect::new(
+            0,
+            (rec.height() - keyboard.height as u32 - 1) as i32,
+            width,
+            keyboard.height as u32,
+        );
+        canvas.copy(&textures[0], None, dst_rec)?;
+
         if control.show_events().is_some() {
-            let rec = canvas.viewport();
-            let width = rec.width();
-            let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
-            let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
-
-            if opt_keyboard.is_some() {
-                if opt_keyboard.as_ref().unwrap().width != width as u16 {
-                    opt_keyboard = None;
-                }
-            }
-            if opt_keyboard.is_none() {
-                trace!("Create Keyboard");
-                textures.clear();
-                opt_keyboard = Some(
-                    piano_keyboard::KeyboardBuilder::new()
-                        .set_width(rec.width() as u16)?
-                        .white_black_gap_present(true)
-                        .set_most_left_right_white_keys(control.left_key(), 
-                                                        control.right_key())?
-                        .build2d(),
-                );
-            }
-            let keyboard = opt_keyboard.as_ref().unwrap();
-            if width != keyboard.width as u32 {
-                textures.clear();
-            }
-
-            if textures.len() == 0 {
-                trace!("Create keyboard textures");
-                // Texture 0 are for unpressed and 1 for pressed keys
-                for pressed in vec![false, true].drain(..) {
-                    let mut texture = texture_creator
-                        .create_texture_target(
-                            texture_creator.default_pixel_format(),
-                            width,
-                            keyboard.height as u32,
-                        )
-                        .unwrap();
-                    canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                        draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
-                    })?;
-                    textures.push(texture);
-                }
-
+            if textures.len() <= 2 {
                 // Texture 2.. are for waterfall.
                 //
                 let maxtime_us = control.show_events().unwrap()[control.show_events_len() - 1].0;
@@ -214,19 +229,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
 
             let pos_us = control.get_pos_us_at_next_frame();
-
-            // Clear canvas
-            canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
-            canvas.clear();
-
-            // Copy keyboard with unpressed keys
-            let dst_rec = sdl2::rect::Rect::new(
-                0,
-                (rec.height() - keyboard.height as u32 - 1) as i32,
-                width,
-                keyboard.height as u32,
-            );
-            canvas.copy(&textures[0], None, dst_rec)?;
 
             let pressed_rectangles = draw_engine::get_pressed_key_rectangles(
                 &keyboard,
