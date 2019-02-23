@@ -179,7 +179,33 @@ min=  2299us avg= 26602us max= 37510us sleep
 min= 12130us avg= 13410us max= 37508us canvas presented
 ```
 
-Apparently the sdl2 implementation is not as performant as on macos.
+Same for macos:
+```
+Sleep time 18 ms - 1 times
+Sleep time 20 ms - 1 times
+Sleep time 22 ms - 1 times
+Sleep time 29 ms - 1 times
+Sleep time 32 ms - 1 times
+Sleep time 34 ms - 1 times
+Sleep time 35 ms - 5 times
+Sleep time 36 ms - 22 times
+Sleep time 37 ms - 275 times
+Sleep time 38 ms - 39 times
+min=     2us avg=     3us max=    86us control at loop start
+min=     1us avg=     2us max=   105us keyboard built
+min=     0us avg=     5us max=  1811us keyboard drawn
+min=     7us avg=    11us max=    50us canvas cleared
+min=     9us avg=    18us max=  1094us copy keyboard to canvas
+min=     0us avg=   188us max= 59459us waterfall and pressed keys drawn
+min=    45us avg=   662us max=162006us event loop
+min= 19194us avg= 38067us max= 39718us sleep
+min=  1126us avg=  1623us max= 12602us canvas presented
+```
+
+On macos canvas present is on average 8 times faster. In addition on linux the waterfall has several flaws. 
+Not sure if this is due to intel graphic driver or sdl library or ...
+
+Funnily on macos the event loop can be blocked by poll_event for a long time, which is weird. Luckily this appears to happen only for Window events, which are seldom.
 
 ## Data to Marche_aux_Flambeaux.mid
 
