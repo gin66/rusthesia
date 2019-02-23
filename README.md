@@ -162,26 +162,30 @@ cargo run --release Marche_aux_Flambeaux.mid -p 0 1 2 -s 0 1 2 -d eventloop -vvv
 without mouse movements/gestures yields:
 
 ```
-Sleep time 2 ms - 1 times
-Sleep time 7 ms - 1 times
-Sleep time 14 ms - 2 times
+Sleep time 1 ms - 1 times
+Sleep time 14 ms - 1 times
 Sleep time 15 ms - 1 times
-Sleep time 23 ms - 1 times
-Sleep time 24 ms - 6 times
-Sleep time 25 ms - 33 times
-Sleep time 26 ms - 153 times
-Sleep time 27 ms - 118 times
-Sleep time 31 ms - 1 times
+Sleep time 16 ms - 1 times
+Sleep time 17 ms - 1 times
+Sleep time 22 ms - 24 times
+Sleep time 23 ms - 81 times
+Sleep time 24 ms - 151 times
+Sleep time 25 ms - 285 times
+Sleep time 26 ms - 1736 times
+Sleep time 27 ms - 4152 times
+Sleep time 28 ms - 2 times
 Sleep time 37 ms - 1 times
-min=     0us avg=     2us max=    74us control at loop start
-min=     0us avg=     0us max=    50us keyboard built
-min=     0us avg=     6us max=  1987us keyboard drawn
-min=     4us avg=    17us max=    72us canvas cleared
-min=    15us avg=    34us max=    91us copy keyboard to canvas
-min=     0us avg=    81us max= 22171us waterfall and pressed keys drawn
-min=     1us avg=     9us max=   488us event loop
-min=  2299us avg= 26602us max= 37510us sleep
-min= 12130us avg= 13410us max= 37508us canvas presented
+Sleep time 38 ms - 1 times
+Lost frames: 2
+min=     0us avg=     1us max=    64us control at loop start
+min=     0us avg=     1us max=    41us keyboard built
+min=     0us avg=     0us max=  1531us keyboard drawn
+min=     3us avg=    17us max=    77us canvas cleared
+min=    17us avg=    36us max=   173us copy keyboard to canvas
+min=     0us avg=    27us max= 24298us waterfall and pressed keys drawn
+min=     1us avg=    10us max=   597us event loop
+min=  1821us avg= 27083us max= 38550us sleep
+min= 11747us avg= 12834us max= 41421us canvas presented
 ```
 
 Same for macos:
