@@ -13,7 +13,7 @@ documentation = "https://docs.rs/releases/search?query=rusthesia"
 
 [dependencies]
 log = "0.4"
-simple-logging = "2.0"
+env_logger = "0.6"
 midir = "0.5"
 midly = "0.1"
 clap = "2.32"

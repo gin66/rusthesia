@@ -2,7 +2,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use log::*;
-use simple_logging;
+use env_logger;
 
 use midly;
 
@@ -16,11 +16,15 @@ mod sdl_event_processor;
 mod time_controller;
 mod usage;
 
+/// logging targets defined as abbreviated constants (and avoid typos in repeats)
+const EV: &str = &"eventloop";
+
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
     let mut control = app_control::AppControl::from_clap(matches);
 
-    simple_logging::log_to_stderr(if control.is_debug() {
+    env_logger::init();
+    log::set_max_level(if control.is_debug() {
         LevelFilter::Trace
     } else {
         if control.verbosity() {
@@ -160,6 +164,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     control.fix_base_time();
     //sequencer.play(-3_000_000);
     'running: loop {
+        trace!(target: EV,"at loop start");
         if control.seq_is_finished() {
             break;
         }
@@ -267,7 +272,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             canvas.copy(&textures[1], src_rec, dst_rec)?;
         }
 
-        trace!("before draw_engine::copy_waterfall_to_screen");
+        trace!(target: EV,"before draw_engine::copy_waterfall_to_screen");
         if true {
             draw_engine::copy_waterfall_to_screen(
                 &textures[2..],
@@ -281,32 +286,29 @@ fn main() -> Result<(), Box<std::error::Error>> {
             )?;
         }
 
-        trace!("before Eventloop");
-        //for event in event_pump.poll_iter() {
-        let mut empty = false;
+        trace!(target: EV,"before Eventloop");
         let sleep_duration = loop {
             let rem_us = control.us_till_next_frame();
-            if empty || rem_us < 5_000 {
-                break Duration::new(0, rem_us as u32 * 1_000);
-            }
-
-            if let Some(event) = event_pump.poll_event() {
-                trace!("event received: {:?}", event);
-                if !sdl_event_processor::process_event(event, &mut control) {
-                    break 'running;
+            if rem_us > 5000 {
+                if let Some(event) = event_pump.poll_event() {
+                    trace!("event received: {:?}", event);
+                    if !sdl_event_processor::process_event(event, &mut control) {
+                        break 'running; // Exit loop
+                    }
+                    continue; // next event
                 }
-            } else {
-                empty = true;
             }
+            break Duration::new(0, rem_us as u32 * 1_000);
         };
 
-        control.update_position_if_scrolling();
-
-        trace!("before sleep {:?}", sleep_duration);
+        trace!(target: EV,"before sleep {:?}", sleep_duration);
         std::thread::sleep(sleep_duration);
 
-        trace!("before canvas present");
+        // Sleep until next frame, then present => stable presentation rate
+        trace!(target: EV,"before canvas present");
         canvas.present();
+
+        control.update_position_if_scrolling();
     }
     sleep(Duration::from_millis(150));
     Ok(())
