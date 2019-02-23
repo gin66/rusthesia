@@ -282,8 +282,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 &keyboard,
                 rec.height() - keyboard.height as u32 - 1,
                 pos_us,
-                &control.show_events().unwrap(),
-            );
+                &control.show_events().unwrap());
             for cmd in draw_commands.into_iter() {
                 match cmd {
                     draw_engine::DrawCommand::CopyToScreen {
@@ -293,16 +292,22 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 }
             }
             trace!(target: EV, "before draw_engine::copy_waterfall_to_screen");
-            draw_engine::copy_waterfall_to_screen(
-                &textures[2..],
-                &mut canvas,
+            let draw_commands = draw_engine::copy_waterfall_to_screen(
+                textures.len()-2,
                 rec.width(),
                 rec.height() - keyboard.height as u32,
                 waterfall_net_height,
                 waterfall_overlap,
                 rows_per_s,
-                pos_us,
-            )?;
+                pos_us);
+            for cmd in draw_commands.into_iter() {
+                match cmd {
+                    draw_engine::DrawCommand::CopyToScreen {
+                        src_texture, src_rect, dst_rect } => {
+                            canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
+                        }
+                }
+            }
         }
         pf.sample("waterfall and pressed keys drawn");
 

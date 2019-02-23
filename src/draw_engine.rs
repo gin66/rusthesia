@@ -253,15 +253,14 @@ pub fn draw_waterfall(
 }
 
 pub fn copy_waterfall_to_screen(
-    textures: &[sdl2::render::Texture],
-    canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+    n: usize,
     width: u32,
     height: u32,
     net_rows: u32,
     overlap: u32,
     rows_per_s: u32,
     pos_us: i64,
-) -> Result<(), Box<std::error::Error>> {
+) -> Vec<DrawCommand> {
     // if pos_us = 0, then first texture bottom need to reach keyboard
     // Thus
     //      src_rect.x=net_rows+overlap-height,src_rect.height=height
@@ -272,7 +271,8 @@ pub fn copy_waterfall_to_screen(
     let row_top = pos_us * rows_per_s as i64 / 1_000_000;
     let row_bottom = row_top + height as i64;
 
-    for (i, ref texture) in textures.iter().enumerate() {
+    let mut commands = vec![];
+    for i in 0..n {
         let tex_row_top = (i as u32 * net_rows) as i64;
         let tex_row_bottom = tex_row_top + net_rows as i64 - 1;
 
@@ -303,10 +303,24 @@ pub fn copy_waterfall_to_screen(
             - cp_height as i32
             - (copy_row_top - tex_row_top).max(0) as i32;
 
-        let src_rec = sdl2::rect::Rect::new(0, y_src, width, cp_height);
-        let dst_rec = sdl2::rect::Rect::new(0, y_dst, width, cp_height);
-        trace!("Copy {:?}->{:?}", src_rec, dst_rec);
-        canvas.copy(&texture, src_rec, dst_rec)?;
+        let src_rect = sdl2::rect::Rect::new(0, y_src, width, cp_height);
+        let dst_rect = sdl2::rect::Rect::new(0, y_dst, width, cp_height);
+        trace!("Copy {:?}->{:?}", src_rect, dst_rect);
+        let cmd = DrawCommand::CopyToScreen {
+            src_texture: i+2,
+            src_rect,
+            dst_rect,
+        };
+        commands.push(cmd);
     }
-    Ok(())
+    commands
 }
+#[cfg(test)]
+mod tests {
+    use crate::draw_engine;
+
+    #[test]
+    fn test_01() {
+    }
+}
+
