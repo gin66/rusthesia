@@ -21,7 +21,7 @@ fn is_white(key: u8) -> bool {
         9 => true,
         10 => false,
         11 => true,
-        _ => panic!("Cannot happen")
+        _ => panic!("Cannot happen"),
     }
 }
 
@@ -266,16 +266,16 @@ pub fn copy_waterfall_to_screen(
         let copy_row_top = row_top.max(tex_row_top);
         let copy_row_bottom = row_bottom.min(tex_row_bottom);
         if false {
-        trace!(
-            "Texture {}: Overlap texture {}-{}<>requested area {}-{} => {}-{}",
-            i,
-            tex_row_top,
-            tex_row_bottom,
-            row_top,
-            row_bottom,
-            copy_row_top,
-            copy_row_bottom
-        );
+            trace!(
+                "Texture {}: Overlap texture {}-{}<>requested area {}-{} => {}-{}",
+                i,
+                tex_row_top,
+                tex_row_bottom,
+                row_top,
+                row_bottom,
+                copy_row_top,
+                copy_row_bottom
+            );
         }
 
         if copy_row_top > copy_row_bottom {

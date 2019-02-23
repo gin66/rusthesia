@@ -1,13 +1,13 @@
-use std::io::{stdin,stdout,Write};
 use std::collections::HashSet;
+use std::io::{stdin, stdout, Write};
 use std::sync::mpsc;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 
 use log::*;
-use midly;
 use midir::MidiOutput;
+use midly;
 
 use crate::time_controller::{TimeController, TimeListener, TimeListenerTrait};
 #[derive(Debug)]
@@ -68,7 +68,7 @@ enum SequencerState {
     Stopped,
     Playing,
     StartPlaying(i64),
-    EOF
+    EOF,
 }
 
 struct MidiSequencerThread {
@@ -103,13 +103,11 @@ impl MidiSequencerThread {
                     Ok(MidiSequencerCommand::Connect(out_port)) => {
                         trace!("Opening connection");
                         let midi_out = midir::MidiOutput::new("Rusthesia").unwrap();
-                        opt_conn_out = Some(midi_out.connect(out_port,
-                                                            "rusthesia").unwrap());
+                        opt_conn_out = Some(midi_out.connect(out_port, "rusthesia").unwrap());
                         trace!("Connection opened");
                         EOF
                     }
-                    Ok(MidiSequencerCommand::Stop)
-                    | Ok(MidiSequencerCommand::Ping) => EOF,
+                    Ok(MidiSequencerCommand::Stop) | Ok(MidiSequencerCommand::Ping) => EOF,
                     Ok(MidiSequencerCommand::Play(pos_us)) => StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::Scale(new_scaling)) => {
                         self.time_control.set_scaling_1000(new_scaling);
@@ -153,9 +151,7 @@ impl MidiSequencerThread {
                         self.time_control.set_scaling_1000(new_scaling);
                         Playing
                     }
-                    Ok(MidiSequencerCommand::SetPosition(pos_us)) => {
-                        StartPlaying(pos_us)
-                    }
+                    Ok(MidiSequencerCommand::SetPosition(pos_us)) => StartPlaying(pos_us),
                     Ok(MidiSequencerCommand::SetEvents(events)) => {
                         self.events = events;
                         StartPlaying(0)
@@ -172,9 +168,7 @@ impl MidiSequencerThread {
                         Stopped
                     }
                 },
-                StartPlaying(_) => {
-                    panic!("StartPlaying should not be reachable here")
-                }
+                StartPlaying(_) => panic!("StartPlaying should not be reachable here"),
             };
 
             state = match state {
@@ -183,8 +177,7 @@ impl MidiSequencerThread {
                 StartPlaying(pos_us) => {
                     idx = 0;
                     self.time_control.set_pos_us(pos_us as i64);
-                    while idx < self.events.len()
-                                && pos_us >= self.events[idx].0 as i64 {
+                    while idx < self.events.len() && pos_us >= self.events[idx].0 as i64 {
                         idx += 1;
                     }
                     if idx >= self.events.len() {
@@ -193,8 +186,7 @@ impl MidiSequencerThread {
                             break;
                         }
                         EOF
-                    }
-                    else {
+                    } else {
                         self.time_control.start();
                         Playing
                     }
@@ -202,8 +194,7 @@ impl MidiSequencerThread {
                 Playing => {
                     let pos_us = self.time_control.get_pos_us();
                     if let Some(ref mut conn_out) = opt_conn_out.as_mut() {
-                        while idx < self.events.len()
-                                    && pos_us >= self.events[idx].0 as i64 {
+                        while idx < self.events.len() && pos_us >= self.events[idx].0 as i64 {
                             let msg = self.events[idx]
                                 .2
                                 .as_raw(self.events[idx].1, Some(&mut key_pressed));
@@ -219,8 +210,7 @@ impl MidiSequencerThread {
                             break;
                         }
                         EOF
-                    }
-                    else {
+                    } else {
                         let next_pos = self.events[idx].0 as i64;
                         let opt_sleep_ms = self.time_control.ms_till_pos(next_pos);
                         if let Some(sleep_ms) = opt_sleep_ms {
@@ -309,7 +299,9 @@ impl MidiSequencer {
             }
         };
         drop(midi_out);
-        self.control.send(MidiSequencerCommand::Connect(out_port)).ok();
+        self.control
+            .send(MidiSequencerCommand::Connect(out_port))
+            .ok();
         Ok(())
     }
 }

@@ -70,15 +70,18 @@ pub fn usage() -> clap::ArgMatches<'static> {
                 .required(true)
                 .index(1),
         )
-        .arg(Arg::with_name("debug")
+        .arg(
+            Arg::with_name("debug")
                 .takes_value(true)
                 .multiple(true)
                 .help("List of modules/targets to debug")
-                .short("d"))
+                .short("d"),
+        )
         .arg(Arg::with_name("verbose").multiple(true).short("v"))
-        .arg(Arg::with_name("quiet")
-             .short("q")
-             .help("No logging output at all"))
-
+        .arg(
+            Arg::with_name("quiet")
+                .short("q")
+                .help("No logging output at all"),
+        )
         .get_matches()
 }

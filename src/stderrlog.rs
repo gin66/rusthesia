@@ -346,7 +346,7 @@ impl Log for StdErrLog {
                 let _ = write!(writer, "{} - ", Local::now().format(fmt));
             }
             Timestamp::Microsecond => {
-                let fmt = "%H:%M:%S%.6f";//HACK
+                let fmt = "%H:%M:%S%.6f"; //HACK
                 let _ = write!(writer, "{}:", Local::now().format(fmt));
             }
             Timestamp::Nanosecond => {
@@ -355,7 +355,13 @@ impl Log for StdErrLog {
             }
             Timestamp::Off => {}
         }
-        let _ = writeln!(writer, "{}:{}:{}", record.level(), record.target(), record.args());
+        let _ = writeln!(
+            writer,
+            "{}:{}:{}",
+            record.level(),
+            record.target(),
+            record.args()
+        );
         {
             writer.get_mut().reset().expect("failed to reset the color");
         }
@@ -467,7 +473,8 @@ impl StdErrLog {
         // if a prefix of module_path is in `self.modules`, it must
         // be located at the first location before
         // where module_path would be.
-        match self.modules
+        match self
+            .modules
             .binary_search_by(|module| module.as_str().cmp(&module_path))
         {
             Ok(_) => {

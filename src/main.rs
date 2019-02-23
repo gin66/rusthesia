@@ -12,9 +12,9 @@ mod midi_container;
 mod midi_sequencer;
 mod scroller;
 mod sdl_event_processor;
+mod stderrlog;
 mod time_controller;
-mod usage;
-mod stderrlog; // Hacked version of stderrlog crate
+mod usage; // Hacked version of stderrlog crate
 
 /// logging targets defined as abbreviated constants (and avoid typos in repeats)
 const EV: &str = &"eventloop";
@@ -32,8 +32,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             .modules(modules.iter().cloned().collect::<Vec<String>>())
             .init()
             .unwrap();
-    }
-    else {
+    } else {
         stderrlog::new()
             .quiet(control.is_quiet())
             .verbosity(control.verbosity())
@@ -52,20 +51,21 @@ fn main() -> Result<(), Box<std::error::Error>> {
     });
 
     if control.list_command() {
-        return midi_container::list_command(control.is_quiet(),&control.midi_fname());
+        return midi_container::list_command(control.is_quiet(), &control.midi_fname());
     }
 
     let only_midi_player = control.show_tracks().len() == 0;
 
     control.create_connected_sequencer(only_midi_player)?;
     if only_midi_player {
-        let (_,play_events) = app_control::AppControl::read_midi_file(
-                                    &control.midi_fname(),
-                                    control.left_key(),
-                                    control.right_key(),
-                                    control.shift_key(),
-                                    control.show_tracks().clone(),
-                                    control.play_tracks().clone())?;
+        let (_, play_events) = app_control::AppControl::read_midi_file(
+            &control.midi_fname(),
+            control.left_key(),
+            control.right_key(),
+            control.shift_key(),
+            control.show_tracks().clone(),
+            control.play_tracks().clone(),
+        )?;
         control.play_midi_data(play_events);
         loop {
             sleep(Duration::from_millis(1000));
@@ -79,26 +79,30 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let nr_of_keys = control.right_key() - control.left_key() + 1;
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    info!(target: SDL,
+    info!(
+        target: SDL,
         "display driver: {:?}",
         video_subsystem.current_video_driver()
     );
-    info!(target: SDL,
-        "dpi: {:?}", video_subsystem.display_dpi(0));
-    info!(target: SDL,
+    info!(target: SDL, "dpi: {:?}", video_subsystem.display_dpi(0));
+    info!(
+        target: SDL,
         "Screensaver: {:?}",
         video_subsystem.is_screen_saver_enabled()
     );
 
-    info!(target: SDL,
+    info!(
+        target: SDL,
         "Swap interval: {:?}",
         video_subsystem.gl_get_swap_interval()
     );
-    info!(target: SDL,
+    info!(
+        target: SDL,
         "{:?}",
         video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::VSync)
     );
-    info!(target: SDL,
+    info!(
+        target: SDL,
         "Swap interval: {:?}",
         video_subsystem.gl_get_swap_interval()
     );
@@ -129,7 +133,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     control.fix_base_time();
     //sequencer.play(-3_000_000);
     'running: loop {
-        trace!(target: EV,"at loop start");
+        trace!(target: EV, "at loop start");
         if control.seq_is_finished() {
             break;
         }
@@ -154,8 +158,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 piano_keyboard::KeyboardBuilder::new()
                     .set_width(rec.width() as u16)?
                     .white_black_gap_present(true)
-                    .set_most_left_right_white_keys(control.left_key(), 
-                                                    control.right_key())?
+                    .set_most_left_right_white_keys(control.left_key(), control.right_key())?
                     .build2d(),
             );
         }
@@ -240,7 +243,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 canvas.copy(&textures[1], src_rec, dst_rec)?;
             }
 
-            trace!(target: EV,"before draw_engine::copy_waterfall_to_screen");
+            trace!(target: EV, "before draw_engine::copy_waterfall_to_screen");
             draw_engine::copy_waterfall_to_screen(
                 &textures[2..],
                 &mut canvas,
@@ -253,7 +256,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             )?;
         }
 
-        trace!(target: EV,"before Eventloop");
+        trace!(target: EV, "before Eventloop");
         let rem_us = loop {
             let rem_us = control.us_till_next_frame();
             if rem_us > 5000 {
@@ -269,15 +272,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
         };
 
         // update stats
-        let n = sleep_time_stats.len()-1;
-        sleep_time_stats[(rem_us as usize/1_000).min(n)] += 1;
+        let n = sleep_time_stats.len() - 1;
+        sleep_time_stats[(rem_us as usize / 1_000).min(n)] += 1;
 
         let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
-        trace!(target: EV,"before sleep {:?}", sleep_duration);
+        trace!(target: EV, "before sleep {:?}", sleep_duration);
         std::thread::sleep(sleep_duration);
 
         // Sleep until next frame, then present => stable presentation rate
-        trace!(target: EV,"before canvas present");
+        trace!(target: EV, "before canvas present");
         canvas.present();
 
         control.update_position_if_scrolling();
@@ -286,8 +289,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     for i in 0..sleep_time_stats.len() {
         if sleep_time_stats[i] > 0 {
-            info!(target:EV,
-                  "Sleep time {:.2} ms - {} times", i, sleep_time_stats[i]);
+            info!(
+                target: EV,
+                "Sleep time {:.2} ms - {} times", i, sleep_time_stats[i]
+            );
         }
     }
     Ok(())
