@@ -51,72 +51,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
         _ => LevelFilter::Trace,
     });
 
-    let nr_of_keys = control.right_key() - control.left_key() + 1;
-
-    //control.read_midi_file();
-    //if !control.is_quiet() {
-    //    for _evt in container.iter() {
-    //        //trace!("{:?}", evt);
-    //    }
-    //    for evt in container.iter().timed(&container.header().timing) {
-    //        trace!("timed: {:?}", evt);
-    //    }
-    //}
-
     if control.list_command() {
-    //    for i in 0..container.nr_of_tracks() {
-    //        println!("Track {}:", i);
-    //        let mut used_channels = vec![false; 16];
-    //        for evt in container.iter().filter(|e| e.1 == i) {
-    //            match evt.2 {
-    //                midly::EventKind::Midi {
-    //                    channel: c,
-    //                    message: _m,
-    //                } => {
-    //                    used_channels[c.as_int() as usize] = true;
-    //                }
-    //                midly::EventKind::SysEx(_) => (),
-    //                midly::EventKind::Escape(_) => (),
-    //                midly::EventKind::Meta(mm) => match mm {
-    //                    midly::MetaMessage::Text(raw) => {
-    //                        println!("  Text: {}", String::from_utf8_lossy(raw));
-    //                    }
-    //                    midly::MetaMessage::ProgramName(raw) => {
-    //                        println!("  Program name: {}", String::from_utf8_lossy(raw));
-    //                    }
-    //                    midly::MetaMessage::DeviceName(raw) => {
-    //                        println!("  Device name: {}", String::from_utf8_lossy(raw));
-    //                    }
-    //                    midly::MetaMessage::InstrumentName(raw) => {
-    //                        println!("  Instrument name: {}", String::from_utf8_lossy(raw));
-    //                    }
-    //                    midly::MetaMessage::TrackName(raw) => {
-    //                        println!("  Track name: {}", String::from_utf8_lossy(raw));
-    //                    }
-    //                    midly::MetaMessage::MidiChannel(channel) => {
-    //                        println!("  Channel: {}", channel.as_int());
-    //                    }
-    //                    midly::MetaMessage::Tempo(ms_per_beat) => {
-    //                        trace!("  Tempo: {:?}", ms_per_beat);
-    //                    }
-    //                    midly::MetaMessage::EndOfTrack => (),
-    //                    mm => warn!("Not treated meta message: {:?}", mm),
-    //                },
-    //            }
-    //        }
-    //        println!(
-    //            "  Used channels: {:?}",
-    //            used_channels
-    //                .iter()
-    //                .enumerate()
-    //                .filter(|(_, v)| **v)
-    //                .map(|(c, _)| c)
-    //                .collect::<Vec<_>>()
-    //        );
-    //    }
-        return Ok(());
+        return midi_container::list_command(control.is_quiet(),&control.midi_fname());
     }
 
+    let nr_of_keys = control.right_key() - control.left_key() + 1;
     //if control.show_events_len() == 0 {
         //sequencer.play(0);
         //loop {
@@ -170,6 +109,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut textures: Vec<sdl2::render::Texture> = vec![];
 
     let mut event_pump = sdl_context.event_pump().unwrap();
+    //event_pump.disable_event(sdl2::event::EventType::Window);
 
     let mut opt_keyboard: Option<piano_keyboard::Keyboard2d> = None;
     let rows_per_s = 100;

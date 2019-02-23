@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 
+use log::*;
+
 pub struct TrackState<'m> {
     trk_number: usize,
     trk_iter: std::slice::Iter<'m, midly::Event<'m>>,
@@ -181,6 +183,70 @@ impl<'m> MidiContainer<'m> {
     pub fn nr_of_tracks(&'m self) -> usize {
         self.smf.tracks.len()
     }
+}
+
+pub fn list_command(quiet: bool,midi_fname: &str) -> Result<(), Box<std::error::Error>> {
+    let smf_buf = midly::SmfBuffer::open(&midi_fname)?;
+    let container = MidiContainer::from_buf(&smf_buf)?;
+    if !quiet {
+        for _evt in container.iter() {
+            //trace!("{:?}", evt);
+        }
+        for evt in container.iter().timed(&container.header().timing) {
+            trace!("timed: {:?}", evt);
+        }
+    }
+    for i in 0..container.nr_of_tracks() {
+        println!("Track {}:", i);
+        let mut used_channels = vec![false; 16];
+        for evt in container.iter().filter(|e| e.1 == i) {
+            match evt.2 {
+                midly::EventKind::Midi {
+                    channel: c,
+                    message: _m,
+                } => {
+                    used_channels[c.as_int() as usize] = true;
+                }
+                midly::EventKind::SysEx(_) => (),
+                midly::EventKind::Escape(_) => (),
+                midly::EventKind::Meta(mm) => match mm {
+                    midly::MetaMessage::Text(raw) => {
+                        println!("  Text: {}", String::from_utf8_lossy(raw));
+                    }
+                    midly::MetaMessage::ProgramName(raw) => {
+                        println!("  Program name: {}", String::from_utf8_lossy(raw));
+                    }
+                    midly::MetaMessage::DeviceName(raw) => {
+                        println!("  Device name: {}", String::from_utf8_lossy(raw));
+                    }
+                    midly::MetaMessage::InstrumentName(raw) => {
+                        println!("  Instrument name: {}", String::from_utf8_lossy(raw));
+                    }
+                    midly::MetaMessage::TrackName(raw) => {
+                        println!("  Track name: {}", String::from_utf8_lossy(raw));
+                    }
+                    midly::MetaMessage::MidiChannel(channel) => {
+                        println!("  Channel: {}", channel.as_int());
+                    }
+                    midly::MetaMessage::Tempo(ms_per_beat) => {
+                        trace!("  Tempo: {:?}", ms_per_beat);
+                    }
+                    midly::MetaMessage::EndOfTrack => (),
+                    mm => warn!("Not treated meta message: {:?}", mm),
+                },
+            }
+        }
+        println!(
+            "  Used channels: {:?}",
+            used_channels
+                .iter()
+                .enumerate()
+                .filter(|(_, v)| **v)
+                .map(|(c, _)| c)
+                .collect::<Vec<_>>()
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]
