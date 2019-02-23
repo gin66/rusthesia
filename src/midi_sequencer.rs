@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use log::*;
 use midir::MidiOutput;
-use midly;
 
 use crate::time_controller::{TimeController, TimeListener, TimeListenerTrait};
 #[derive(Debug)]

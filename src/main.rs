@@ -3,8 +3,6 @@ use std::time::Duration;
 
 use log::*;
 
-use midly;
-
 //mod app;
 mod app_control;
 mod draw_engine;
