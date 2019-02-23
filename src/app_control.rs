@@ -99,8 +99,9 @@ pub fn transposed_message(
 pub struct AppControl<'a> {
     midi_fname: String,
     command_list_tracks: bool,
-    debug: bool,
-    verbose: bool,
+    quiet: bool,
+    debug: Option<Vec<String>>,
+    verbose: usize,
     paused: bool,
     scale_1000: u16,
     ms_per_frame: u32,
@@ -126,8 +127,9 @@ impl<'a> AppControl<'a> {
         AppControl {
             midi_fname: "".to_string(),
             command_list_tracks: false,
-            debug: false,
-            verbose: false,
+            quiet: false,
+            debug: None,
+            verbose: 0,
             paused: false,
             scale_1000: 1000,
             ms_per_frame: 40,
@@ -148,8 +150,15 @@ impl<'a> AppControl<'a> {
         }
     }
     pub fn from_clap(matches: ArgMatches) -> AppControl<'a> {
-        let debug = matches.is_present("debug");
-        let verbose = matches.is_present("verbose");
+        let quiet = matches.is_present("quiet");
+        let debug = if matches.is_present("debug") {
+            Some(values_t!(matches.values_of("debug"), String)
+                .unwrap_or_else(|_| vec![]))
+        }
+        else {
+            None
+        };
+        let verbose = matches.occurrences_of("verbose") as usize;
         let shift_key = value_t!(matches, "transpose", i8).unwrap_or_else(|e| e.exit());
         let rd64 = matches.is_present("RD64");
         let (left_key, right_key): (u8, u8) = if rd64 {
@@ -161,12 +170,13 @@ impl<'a> AppControl<'a> {
         };
         let midi_fname = matches.value_of("MIDI").unwrap().to_string();
         let list_tracks = matches.is_present("list");
-        let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);;
-        let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());;
+        let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);
+        let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());
         let scroller = Scroller::new(5_000_000.0);
         AppControl {
             midi_fname,
             command_list_tracks: list_tracks,
+            quiet,
             debug,
             verbose,
             paused: false,
@@ -318,10 +328,13 @@ impl<'a> AppControl<'a> {
             }
         }
     }
-    pub fn is_debug(&self) -> bool {
-        self.debug
+    pub fn is_quiet(&self) -> bool {
+        self.quiet
     }
-    pub fn verbosity(&self) -> bool {
+    pub fn is_debug(&self) -> Option<&Vec<String>> {
+        self.debug.as_ref()
+    }
+    pub fn verbosity(&self) -> usize {
         self.verbose
     }
     //pub fn shift_key(&self) -> i8 {

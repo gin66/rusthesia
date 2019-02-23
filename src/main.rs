@@ -2,7 +2,6 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use log::*;
-use env_logger;
 
 use midly;
 
@@ -15,6 +14,7 @@ mod scroller;
 mod sdl_event_processor;
 mod time_controller;
 mod usage;
+mod stderrlog; // Hacked version of stderrlog crate
 
 /// logging targets defined as abbreviated constants (and avoid typos in repeats)
 const EV: &str = &"eventloop";
@@ -23,22 +23,38 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
     let mut control = app_control::AppControl::from_clap(matches);
 
-    env_logger::init();
-    log::set_max_level(if control.is_debug() {
-        LevelFilter::Trace
-    } else {
-        if control.verbosity() {
-            LevelFilter::Warn
-        } else {
-            LevelFilter::Error
-        }
+    if let Some(modules) = control.is_debug() {
+        stderrlog::new()
+            .quiet(control.is_quiet())
+            .verbosity(control.verbosity())
+            .timestamp(stderrlog::Timestamp::Microsecond)
+            .modules(modules.iter().cloned().collect::<Vec<String>>())
+            .init()
+            .unwrap();
+    }
+    else {
+        stderrlog::new()
+            .quiet(control.is_quiet())
+            .verbosity(control.verbosity())
+            .timestamp(stderrlog::Timestamp::Microsecond)
+            .init()
+            .unwrap();
+    }
+
+    log::set_max_level(match control.verbosity() {
+        0 => LevelFilter::Off,
+        1 => LevelFilter::Error,
+        2 => LevelFilter::Warn,
+        3 => LevelFilter::Info,
+        4 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
     });
 
     let nr_of_keys = control.right_key() - control.left_key() + 1;
 
     let smf_buf = midly::SmfBuffer::open(&control.midi_fname()).unwrap();
     let container = midi_container::MidiContainer::from_buf(&smf_buf)?;
-    if control.is_debug() {
+    if !control.is_quiet() {
         for _evt in container.iter() {
             //trace!("{:?}", evt);
         }

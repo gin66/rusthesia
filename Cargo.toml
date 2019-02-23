@@ -13,13 +13,17 @@ documentation = "https://docs.rs/releases/search?query=rusthesia"
 
 [dependencies]
 log = "0.4"
-env_logger = "0.6"
 midir = "0.5"
 midly = "0.1"
 clap = "2.32"
 indoc = "0.3"
 font-kit = "0.1"
 piano_keyboard = "0.1"
+
+# Dependencies for hacked stderrlog
+chrono = "0.4"
+termcolor = "0.3.3"
+thread_local = "0.3"
 
 [dependencies.sdl2]
 version = "0.31"
