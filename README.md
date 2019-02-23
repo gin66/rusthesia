@@ -78,6 +78,11 @@ Only use the midi player function without graphic output:
 > rusthesia Marche_aux_Flambeaux.mid -p 1
 ```
 
+To get info about the event loop in regard to timing debug flags can be added:
+```
+> rusthesia Marche_aux_Flambeaux.mid -p 1 -vvv -d eventloop
+```
+
 ## Todo
 
 Todo list is managed under [projects](https://github.com/gin66/rusthesia/projects)
