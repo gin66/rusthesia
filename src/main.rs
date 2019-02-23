@@ -18,6 +18,7 @@ mod stderrlog; // Hacked version of stderrlog crate
 
 /// logging targets defined as abbreviated constants (and avoid typos in repeats)
 const EV: &str = &"eventloop";
+const SDL: &str = &"sdl";
 
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
@@ -134,25 +135,26 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    println!(
+    info!(target: SDL,
         "display driver: {:?}",
         video_subsystem.current_video_driver()
     );
-    println!("dpi: {:?}", video_subsystem.display_dpi(0));
-    println!(
+    info!(target: SDL,
+        "dpi: {:?}", video_subsystem.display_dpi(0));
+    info!(target: SDL,
         "Screensaver: {:?}",
         video_subsystem.is_screen_saver_enabled()
     );
 
-    println!(
+    info!(target: SDL,
         "Swap interval: {:?}",
         video_subsystem.gl_get_swap_interval()
     );
-    println!(
+    info!(target: SDL,
         "{:?}",
         video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::VSync)
     );
-    println!(
+    info!(target: SDL,
         "Swap interval: {:?}",
         video_subsystem.gl_get_swap_interval()
     );
@@ -163,7 +165,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .resizable()
         .build()
         .unwrap();
-    println!("Display Mode: {:?}", window.display_mode());
+    info!(target: SDL, "Display Mode: {:?}", window.display_mode());
     //let window_context = window.context();
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
