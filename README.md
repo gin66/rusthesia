@@ -153,10 +153,15 @@ Unfortunatly it does not work for these issues:
 
 Need further debugging.
 
-Performance measurement yields:
+Performance measurement using:
 
 ```
 cargo run --release Marche_aux_Flambeaux.mid -p 0 1 2 -s 0 1 2 -d eventloop -vvvv
+````
+
+without mouse movements/gestures yields:
+
+```
 Sleep time 2 ms - 1 times
 Sleep time 7 ms - 1 times
 Sleep time 14 ms - 2 times
@@ -181,25 +186,32 @@ min= 12130us avg= 13410us max= 37508us canvas presented
 
 Same for macos:
 ```
+Sleep time 6 ms - 1 times
 Sleep time 18 ms - 1 times
-Sleep time 20 ms - 1 times
-Sleep time 22 ms - 1 times
-Sleep time 29 ms - 1 times
-Sleep time 32 ms - 1 times
-Sleep time 34 ms - 1 times
-Sleep time 35 ms - 5 times
-Sleep time 36 ms - 22 times
-Sleep time 37 ms - 275 times
-Sleep time 38 ms - 39 times
-min=     2us avg=     3us max=    86us control at loop start
-min=     1us avg=     2us max=   105us keyboard built
-min=     0us avg=     5us max=  1811us keyboard drawn
-min=     7us avg=    11us max=    50us canvas cleared
-min=     9us avg=    18us max=  1094us copy keyboard to canvas
-min=     0us avg=   188us max= 59459us waterfall and pressed keys drawn
-min=    45us avg=   662us max=162006us event loop
-min= 19194us avg= 38067us max= 39718us sleep
-min=  1126us avg=  1623us max= 12602us canvas presented
+Sleep time 26 ms - 1 times
+Sleep time 27 ms - 4 times
+Sleep time 28 ms - 1 times
+Sleep time 29 ms - 4 times
+Sleep time 30 ms - 3 times
+Sleep time 31 ms - 2 times
+Sleep time 32 ms - 10 times
+Sleep time 33 ms - 9 times
+Sleep time 34 ms - 12 times
+Sleep time 35 ms - 75 times
+Sleep time 36 ms - 484 times
+Sleep time 37 ms - 4921 times
+Sleep time 38 ms - 1054 times
+Sleep time 39 ms - 1 times
+Lost frames: 2
+min=     2us avg=     4us max=    98us control at loop start
+min=     1us avg=     2us max=   115us keyboard built
+min=     0us avg=     0us max=  1355us keyboard drawn
+min=     7us avg=    11us max=   261us canvas cleared
+min=     9us avg=    15us max=   905us copy keyboard to canvas
+min=     0us avg=    43us max= 37208us waterfall and pressed keys drawn
+min=    36us avg=   149us max= 90750us event loop
+min=  7070us avg= 38221us max= 40092us sleep
+min=  1058us avg=  1574us max= 22518us canvas presented
 ```
 
 On macos canvas present is on average 8 times faster. In addition on linux the waterfall has several flaws. 
