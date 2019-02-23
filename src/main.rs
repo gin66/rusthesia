@@ -348,6 +348,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
             );
         }
     }
+    info!(target: EV, "Lost frames: {}", control.lost_frames_cnt());
     pf.output();
     Ok(())
 }
+

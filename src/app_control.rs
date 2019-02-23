@@ -119,6 +119,7 @@ pub struct AppControl {
     sequencer: Option<MidiSequencer>,
     scroller: Scroller,
     time_keeper: Option<TimeListener>,
+    lost_frames_cnt: usize,
     rx: mpsc::Receiver<WorkerResult>,
     tx: mpsc::Sender<WorkerResult>,
     worker: Option<thread::JoinHandle<()>>,
@@ -151,6 +152,7 @@ impl AppControl {
             sequencer: None,
             scroller,
             time_keeper: None,
+            lost_frames_cnt: 0,
             rx,
             tx,
             worker: None,
@@ -202,6 +204,7 @@ impl AppControl {
             sequencer: None,
             scroller,
             time_keeper: None,
+            lost_frames_cnt: 0,
             rx,
             tx,
             worker: None,
@@ -326,6 +329,9 @@ impl AppControl {
     pub fn play_tracks(&self) -> &Vec<usize> {
         &self.play_tracks
     }
+    pub fn lost_frames_cnt(&self) -> usize {
+        self.lost_frames_cnt
+    }
     pub fn seq_is_finished(&mut self) -> bool {
         if let Some(seq) = self.sequencer.take() {
             let finished = seq.is_finished();
@@ -379,6 +385,7 @@ impl AppControl {
             self.last_frame = curr_frame;
             if lost_frames > 1 {
                 warn!("{} FRAME(S) LOST", lost_frames - 1);
+                self.lost_frames_cnt += 1;
             }
             (us_per_frame - (elapsed_us - curr_frame * us_per_frame)) as u32
         } else {
