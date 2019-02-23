@@ -46,7 +46,7 @@ fn transposed_message(
                 Some((
                     time_us,
                     trk,
-                    MidiEvent::NoteOn(0 * channel, shifted_key as u8, pressure.as_int()),
+                    MidiEvent::NoteOn(channel, shifted_key as u8, pressure.as_int()),
                 ))
             }
         }
@@ -58,7 +58,7 @@ fn transposed_message(
                 Some((
                     time_us,
                     trk,
-                    MidiEvent::NoteOff(0 * channel, shifted_key as u8, pressure.as_int()),
+                    MidiEvent::NoteOff(channel, shifted_key as u8, pressure.as_int()),
                 ))
             }
         }
@@ -70,7 +70,7 @@ fn transposed_message(
                 Some((
                     time_us,
                     trk,
-                    MidiEvent::Aftertouch(0 * channel, shifted_key as u8, pressure.as_int()),
+                    MidiEvent::Aftertouch(channel, shifted_key as u8, pressure.as_int()),
                 ))
             }
         }
@@ -237,11 +237,7 @@ impl AppControl {
             self.pos_us = if forward {
                 self.pos_us + 5_000_000
             } else {
-                if self.pos_us > 5_000_000 {
-                    self.pos_us - 5_000_000
-                } else {
-                    0
-                }
+                (self.pos_us - 5_000_000).max(-3_000_000)
             };
             if self.paused {
                 seq.set_pos_us(self.pos_us);
@@ -459,7 +455,7 @@ impl AppControl {
                 self.show_events = Some(show_events);
                 if let Some(seq) = self.sequencer.take() {
                     seq.set_midi_data(play_events);
-                    seq.play(self.pos_us);
+                    seq.play(-3_000_000);
                     self.sequencer = Some(seq);
                 }
                 AppState::Running
