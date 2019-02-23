@@ -1,5 +1,5 @@
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration,Instant};
 
 use log::*;
 
@@ -17,6 +17,44 @@ mod usage; // Hacked version of stderrlog crate
 /// logging targets defined as abbreviated constants (and avoid typos in repeats)
 const EV: &str = &"eventloop";
 const SDL: &str = &"sdl";
+
+#[derive(Default)]
+struct PerfMonitor<'a> {
+    index: usize,
+    last_us: u64,
+    stamp: Option<Instant>,
+    measures: Vec<(u64,u64,u64,usize,&'a str)>,
+}
+impl<'a> PerfMonitor<'a> {
+    pub fn next_loop(&mut self) {
+        self.index = 0;
+        self.last_us = 0;
+        self.stamp = Some(Instant::now());
+    }
+    pub fn sample(&mut self, name: &'a str) {
+        if self.measures.len() <= self.index {
+            self.measures.push( (u64::max_value(),0,0,0,name) );
+        }
+        let elapsed = self.stamp.as_ref().unwrap().elapsed();
+        let elapsed_us = elapsed.subsec_micros() as u64;
+        let dt_us = elapsed_us - self.last_us;
+        self.last_us = elapsed_us;
+
+        let m = &mut self.measures[self.index];
+        m.0 = m.0.min(dt_us);
+        m.1 += dt_us;
+        m.2 = m.2.max(dt_us);
+        m.3 += 1;
+        self.index += 1;
+    }
+    pub fn output(&self) {
+        for (us_min,us_sum,us_max,cnt,name) in &self.measures {
+            info!(target: EV,
+                  "min={:6.6}us avg={:6.6}us max={:6.6}us {}",
+                  us_min,us_sum/ *cnt as u64,us_max,name);
+        }
+    }
+}
 
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
@@ -127,11 +165,14 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let waterfall_tex_height = 1000;
 
     let mut sleep_time_stats = vec![0; 100]; // millisecond resolution
+    let mut pf = PerfMonitor::default();
 
     control.fix_base_time();
     //sequencer.play(-3_000_000);
     'running: loop {
         trace!(target: EV, "at loop start");
+        pf.next_loop();
+
         if control.seq_is_finished() {
             break;
         }
@@ -139,6 +180,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if control.need_redraw() {
             textures.clear();
         }
+        pf.sample("control at loop start");
+
         let rec = canvas.viewport();
         let width = rec.width();
         let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
@@ -164,6 +207,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if width != keyboard.width as u32 {
             textures.clear();
         }
+        pf.sample("keyboard built");
 
         if textures.len() == 0 {
             trace!("Create keyboard textures");
@@ -182,10 +226,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 textures.push(texture);
             }
         }
+        pf.sample("keyboard drawn");
 
         // Clear canvas
         canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
         canvas.clear();
+        pf.sample("canvas cleared");
 
         // Copy keyboard with unpressed keys
         let dst_rec = sdl2::rect::Rect::new(
@@ -195,6 +241,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             keyboard.height as u32,
         );
         canvas.copy(&textures[0], None, dst_rec)?;
+        pf.sample("copy keyboard to canvas");
 
         if control.show_events().is_some() {
             if textures.len() <= 2 {
@@ -257,6 +304,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 pos_us,
             )?;
         }
+        pf.sample("waterfall and pressed keys drawn");
 
         trace!(target: EV, "before Eventloop");
         let rem_us = loop {
@@ -272,6 +320,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
             break rem_us;
         };
+        pf.sample("event loop");
 
         // update stats
         let n = sleep_time_stats.len() - 1;
@@ -280,10 +329,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
         let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
         trace!(target: EV, "before sleep {:?}", sleep_duration);
         std::thread::sleep(sleep_duration);
+        pf.sample("sleep");
 
         // Sleep until next frame, then present => stable presentation rate
         trace!(target: EV, "before canvas present");
         canvas.present();
+        pf.sample("canvas presented");
 
         control.update_position_if_scrolling();
     }
@@ -297,5 +348,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
             );
         }
     }
+    pf.output();
     Ok(())
 }

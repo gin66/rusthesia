@@ -153,6 +153,34 @@ Unfortunatly it does not work for these issues:
 
 Need further debugging.
 
+Performance measurement yields:
+
+```
+cargo run --release Marche_aux_Flambeaux.mid -p 0 1 2 -s 0 1 2 -d eventloop -vvvv
+Sleep time 2 ms - 1 times
+Sleep time 7 ms - 1 times
+Sleep time 14 ms - 2 times
+Sleep time 15 ms - 1 times
+Sleep time 23 ms - 1 times
+Sleep time 24 ms - 6 times
+Sleep time 25 ms - 33 times
+Sleep time 26 ms - 153 times
+Sleep time 27 ms - 118 times
+Sleep time 31 ms - 1 times
+Sleep time 37 ms - 1 times
+min=     0us avg=     2us max=    74us control at loop start
+min=     0us avg=     0us max=    50us keyboard built
+min=     0us avg=     6us max=  1987us keyboard drawn
+min=     4us avg=    17us max=    72us canvas cleared
+min=    15us avg=    34us max=    91us copy keyboard to canvas
+min=     0us avg=    81us max= 22171us waterfall and pressed keys drawn
+min=     1us avg=     9us max=   488us event loop
+min=  2299us avg= 26602us max= 37510us sleep
+min= 12130us avg= 13410us max= 37508us canvas presented
+```
+
+Apparently the sdl2 implementation is not as performant as on macos.
+
 ## Data to Marche_aux_Flambeaux.mid
 
 * 115 bars
@@ -192,4 +220,3 @@ Consequently automated builds resulting in a public available binary cannot be s
 ## Final Words
 
 The application works, but still this is a quick hack and not polished for code review ;-)
-
