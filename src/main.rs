@@ -153,6 +153,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     //let window_context = window.context();
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
+        .present_vsync()
         .build()?;
     let texture_creator = canvas.texture_creator();
     let mut textures: Vec<sdl2::render::Texture> = vec![];
@@ -166,6 +167,19 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let mut sleep_time_stats = vec![0; 100]; // millisecond resolution
     let mut pf = PerfMonitor::default();
+
+    // Measure framerate
+    canvas.clear();
+    canvas.present();
+    for d in 5..40 {
+        let start_measure = Instant::now();
+        sleep(Duration::from_millis(d));
+        canvas.present();
+        sleep(Duration::from_millis(d));
+        canvas.present();
+        let elapsed_us = start_measure.elapsed().subsec_micros() as u32/2;
+        println!("{} framerate={:?} mHz    {} us/frame",d,1_000_000_000/elapsed_us,elapsed_us);
+    }
 
     control.fix_base_time();
     //sequencer.play(-3_000_000);
