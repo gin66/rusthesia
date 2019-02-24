@@ -181,6 +181,7 @@ impl AppControl {
         let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);
         let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());
         let scroller = Scroller::new(5_000_000.0);
+        let ms_per_frame = value_t!(matches, "ms_per_frame", u32).unwrap_or_else(|e| e.exit());
         AppControl {
             state: None,
             midi_fname,
@@ -190,7 +191,7 @@ impl AppControl {
             verbose,
             paused: false,
             scale_1000: 1000,
-            ms_per_frame: 40,
+            ms_per_frame,
             base_time: None,
             pos_us: 0,
             left_key,

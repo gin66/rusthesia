@@ -83,5 +83,13 @@ pub fn usage() -> clap::ArgMatches<'static> {
                 .short("q")
                 .help("No logging output at all"),
         )
+        .arg(
+            Arg::with_name("ms_per_frame")
+                .short("m")
+                .long("ms-per-frame")
+                .takes_value(true)
+                .default_value("40")
+                .help("Defines the framerate (check your monitor)"),
+        )
         .get_matches()
 }
