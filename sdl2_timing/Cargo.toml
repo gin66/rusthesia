@@ -18,3 +18,7 @@ version = "0.31"
 default-features = false
 features = ["gfx","ttf"]
 
+[dependencies.log]
+version = "0.4"
+features = ["std"]
+

@@ -3,6 +3,8 @@ use std::time::{Duration,Instant};
 
 use log::*;
 
+use sdl2_timing::Sdl2Timing;
+
 //mod app;
 mod app_control;
 mod draw_engine;
@@ -165,59 +167,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
-    let mut sleep_time_stats = vec![0; 100]; // millisecond resolution
-    let mut pf = PerfMonitor::default();
+    let mut pf = Sdl2Timing::default();
 
-    if false {
-    // Measure framerate
-    canvas.clear();
-    let base_measure = Instant::now();
-    for d in vec![50_000,50_000,50_000,
-                  40_000,40_000,40_000,
-                  30_000,30_000,30_000,
-                  20_000,20_000,20_000,
-                  10_000,10_000,10_000,
-                  5_000,5_000,5_000].into_iter() {
-        pf.next_loop();
-        let start_measure = Instant::now();
-        canvas.clear(); // Blocks for VSYNC after warm up
-        pf.sample("canvas clear");
-        let elapsed_us_0 = start_measure.elapsed().subsec_micros() as u32;
-        sleep(Duration::from_micros(d));
-        pf.sample("sleep");
-        let elapsed_us_1 = start_measure.elapsed().subsec_micros() as u32;
-        canvas.present(); // Blocks for VSYNC after warm up
-        pf.sample("canvas present");
-        let elapsed_us_2 = start_measure.elapsed().subsec_micros() as u32;
-        println!("{}+{}+{}={}",
-                    elapsed_us_0,
-                    elapsed_us_1-elapsed_us_0,
-                    elapsed_us_2-elapsed_us_1,
-                    elapsed_us_2);
-    }
-    pf.output();
-    return Ok(());
-
-    // Measure framerate
-    canvas.clear();
-    canvas.present();
-    for d in 0..400 {
-        pf.next_loop();
-        let start_measure = Instant::now();
-        sleep(Duration::from_micros(d*100));
-        canvas.present();
-        sleep(Duration::from_micros(d*100));
-        canvas.present();
-        let elapsed_us = start_measure.elapsed().subsec_micros() as u32/2;
-        println!("{} framerate={:?} mHz    {} us/frame",d,1_000_000_000/elapsed_us,elapsed_us);
-    }
-    }
-
-    control.fix_base_time();
-    //sequencer.play(-3_000_000);
     'running: loop {
         trace!(target: EV, "at loop start");
-        pf.next_loop();
+        pf.canvas_present_then_clear(&mut canvas);
 
         if control.seq_is_finished() {
             break;
@@ -273,11 +227,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         pf.sample("keyboard drawn");
-
-        // Clear canvas
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
-        canvas.clear();
-        pf.sample("canvas cleared");
 
         // Copy keyboard with unpressed keys
         let dst_rec = sdl2::rect::Rect::new(
@@ -361,7 +310,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
         trace!(target: EV, "before Eventloop");
         let rem_us = loop {
-            let rem_us = control.us_till_next_frame();
+            let rem_us = pf.us_till_next_frame();
             if rem_us > 5000 {
                 if let Some(event) = event_pump.poll_event() {
                     trace!("event received: {:?}", event);
@@ -375,33 +324,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
         };
         pf.sample("event loop");
 
-        // update stats
-        let n = sleep_time_stats.len() - 1;
-        sleep_time_stats[(rem_us as usize / 1_000).min(n)] += 1;
-
-        let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
-        trace!(target: EV, "before sleep {:?}", sleep_duration);
-        std::thread::sleep(sleep_duration);
-        pf.sample("sleep");
-
-        // Sleep until next frame, then present => stable presentation rate
-        trace!(target: EV, "before canvas present");
-        canvas.present();
-        pf.sample("canvas presented");
-
         control.update_position_if_scrolling();
     }
     sleep(Duration::from_millis(150));
 
-    for i in 0..sleep_time_stats.len() {
-        if sleep_time_stats[i] > 0 {
-            info!(
-                target: EV,
-                "Sleep time {:.2} ms - {} times", i, sleep_time_stats[i]
-            );
-        }
-    }
-    info!(target: EV, "Lost frames: {}", control.lost_frames_cnt());
     pf.output();
     Ok(())
 }

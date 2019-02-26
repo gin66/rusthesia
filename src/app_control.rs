@@ -106,12 +106,10 @@ pub struct AppControl {
     paused: bool,
     scale_1000: u16,
     ms_per_frame: u32,
-    base_time: Option<Instant>,
     pos_us: i64,
     left_key: u8,
     right_key: u8,
     shift_key: i8,
-    last_frame: u64,
     need_redraw_textures: bool,
     show_tracks: Vec<usize>,
     play_tracks: Vec<usize>,
@@ -119,7 +117,6 @@ pub struct AppControl {
     sequencer: Option<MidiSequencer>,
     scroller: Scroller,
     time_keeper: Option<TimeListener>,
-    lost_frames_cnt: usize,
     rx: mpsc::Receiver<WorkerResult>,
     tx: mpsc::Sender<WorkerResult>,
     worker: Option<thread::JoinHandle<()>>,
@@ -139,12 +136,10 @@ impl AppControl {
             paused: false,
             scale_1000: 1000,
             ms_per_frame: 40,
-            base_time: None,
             pos_us: 0,
             left_key: 21,
             right_key: 108,
             shift_key: 0,
-            last_frame: 0,
             need_redraw_textures: false,
             show_tracks: vec![],
             play_tracks: vec![],
@@ -152,7 +147,6 @@ impl AppControl {
             sequencer: None,
             scroller,
             time_keeper: None,
-            lost_frames_cnt: 0,
             rx,
             tx,
             worker: None,
@@ -192,12 +186,10 @@ impl AppControl {
             paused: false,
             scale_1000: 1000,
             ms_per_frame,
-            base_time: None,
             pos_us: 0,
             left_key,
             right_key,
             shift_key,
-            last_frame: 0,
             need_redraw_textures: false,
             show_tracks,
             play_tracks,
@@ -205,7 +197,6 @@ impl AppControl {
             sequencer: None,
             scroller,
             time_keeper: None,
-            lost_frames_cnt: 0,
             rx,
             tx,
             worker: None,
@@ -326,9 +317,6 @@ impl AppControl {
     pub fn play_tracks(&self) -> &Vec<usize> {
         &self.play_tracks
     }
-    pub fn lost_frames_cnt(&self) -> usize {
-        self.lost_frames_cnt
-    }
     pub fn seq_is_finished(&mut self) -> bool {
         if let Some(seq) = self.sequencer.take() {
             let finished = seq.is_finished();
@@ -357,37 +345,20 @@ impl AppControl {
         self.sequencer = Some(sequencer);
         Ok(())
     }
-    pub fn fix_base_time(&mut self) {
-        self.base_time = Some(Instant::now());
-    }
     pub fn get_pos_us_at_next_frame(&mut self) -> i64 {
-        if let Some(base_time) = self.base_time.as_ref() {
-            let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros();
-            let us_per_frame = self.ms_per_frame() * 1_000;
-            let rem_us = us_per_frame - elapsed_us % us_per_frame;
-            let rem_dur = Duration::new(0, rem_us * 1_000);
-            self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
-        } else {
-            0
-        }
-    }
-    pub fn us_till_next_frame(&mut self) -> u32 {
-        if let Some(base_time) = self.base_time.as_ref() {
-            let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
-            let us_per_frame = self.ms_per_frame() as u64 * 1_000;
-            let curr_frame = elapsed_us / us_per_frame;
-            let lost_frames = curr_frame - self.last_frame;
-            self.last_frame = curr_frame;
-            if lost_frames > 1 {
-                warn!("{} FRAME(S) LOST", lost_frames - 1);
-                self.lost_frames_cnt += 1;
-            }
-            (us_per_frame - (elapsed_us - curr_frame * us_per_frame)) as u32
-        } else {
-            0
-        }
+        //if let Some(base_time) = self.base_time.as_ref() {
+        //    let elapsed = base_time.elapsed();
+        //    let elapsed_us = elapsed.subsec_micros();
+        //    let us_per_frame = self.ms_per_frame() * 1_000;
+        //    let rem_us = us_per_frame - elapsed_us % us_per_frame;
+        //    let rem_dur = Duration::new(0, rem_us * 1_000);
+        //    self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
+        //} else {
+        //    0
+        //}
+        // TODO
+        let rem_dur = Duration::new(0, 1 * 1_000);
+        self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
     }
     pub fn read_midi_file(
         midi_fname: &str,
