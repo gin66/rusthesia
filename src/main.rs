@@ -168,17 +168,49 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut sleep_time_stats = vec![0; 100]; // millisecond resolution
     let mut pf = PerfMonitor::default();
 
+    if false {
+    // Measure framerate
+    canvas.clear();
+    let base_measure = Instant::now();
+    for d in vec![50_000,50_000,50_000,
+                  40_000,40_000,40_000,
+                  30_000,30_000,30_000,
+                  20_000,20_000,20_000,
+                  10_000,10_000,10_000,
+                  5_000,5_000,5_000].into_iter() {
+        pf.next_loop();
+        let start_measure = Instant::now();
+        canvas.clear(); // Blocks for VSYNC after warm up
+        pf.sample("canvas clear");
+        let elapsed_us_0 = start_measure.elapsed().subsec_micros() as u32;
+        sleep(Duration::from_micros(d));
+        pf.sample("sleep");
+        let elapsed_us_1 = start_measure.elapsed().subsec_micros() as u32;
+        canvas.present(); // Blocks for VSYNC after warm up
+        pf.sample("canvas present");
+        let elapsed_us_2 = start_measure.elapsed().subsec_micros() as u32;
+        println!("{}+{}+{}={}",
+                    elapsed_us_0,
+                    elapsed_us_1-elapsed_us_0,
+                    elapsed_us_2-elapsed_us_1,
+                    elapsed_us_2);
+    }
+    pf.output();
+    return Ok(());
+
     // Measure framerate
     canvas.clear();
     canvas.present();
-    for d in 5..40 {
+    for d in 0..400 {
+        pf.next_loop();
         let start_measure = Instant::now();
-        sleep(Duration::from_millis(d));
+        sleep(Duration::from_micros(d*100));
         canvas.present();
-        sleep(Duration::from_millis(d));
+        sleep(Duration::from_micros(d*100));
         canvas.present();
         let elapsed_us = start_measure.elapsed().subsec_micros() as u32/2;
         println!("{} framerate={:?} mHz    {} us/frame",d,1_000_000_000/elapsed_us,elapsed_us);
+    }
     }
 
     control.fix_base_time();
