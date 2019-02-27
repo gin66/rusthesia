@@ -1,5 +1,5 @@
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use log::*;
 
@@ -291,7 +291,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         pf.sample("waterfall and pressed keys drawn");
 
         trace!(target: EV, "before Eventloop");
-        let rem_us = loop {
+        loop {
             let rem_us = pf.us_till_next_frame();
             if rem_us > 5000 {
                 if let Some(event) = event_pump.poll_event() {
@@ -302,7 +302,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     continue; // next event
                 }
             }
-            break rem_us;
+            break;
         };
         pf.sample("event loop");
 

@@ -1,6 +1,6 @@
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use clap::ArgMatches;
 use clap::{value_t, values_t};
