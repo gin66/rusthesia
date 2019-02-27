@@ -1,5 +1,5 @@
 use std::thread::sleep;
-use std::time::{Duration,Instant};
+use std::time::{Duration, Instant};
 
 use log::*;
 
@@ -84,7 +84,22 @@ fn main() -> Result<(), Box<std::error::Error>> {
         "display driver: {:?}",
         video_subsystem.current_video_driver()
     );
-    info!(target: SDL, "dpi: {:?}", video_subsystem.display_dpi(0));
+    let nr_displays = video_subsystem.num_video_displays()?;
+    for i in 0..nr_displays {
+        info!(
+            target: SDL,
+            "{}: Display Mode: {:?}",
+            i,
+            video_subsystem.current_display_mode(i)
+        );
+        info!(
+            target: SDL,
+            "{}: dpi: {:?}",
+            i,
+            video_subsystem.display_dpi(i)
+        );
+    }
+
     info!(
         target: SDL,
         "Screensaver: {:?}",
@@ -243,19 +258,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 &keyboard,
                 rec.height() - keyboard.height as u32 - 1,
                 pos_us,
-                &control.show_events().unwrap());
+                &control.show_events().unwrap(),
+            );
             let mut draw_commands_2 = draw_engine::copy_waterfall_to_screen(
-                textures.len()-2,
+                textures.len() - 2,
                 rec.width(),
                 rec.height() - keyboard.height as u32,
                 waterfall_net_height,
                 waterfall_overlap,
                 rows_per_s,
-                pos_us);
+                pos_us,
+            );
             draw_commands_1.append(&mut draw_commands_2);
             draw_commands_1
-        }
-        else {
+        } else {
             vec![]
         };
         pf.sample("waterfall and pressed keys commands generated");
@@ -264,9 +280,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
         for cmd in draw_commands.into_iter() {
             match cmd {
                 draw_engine::DrawCommand::CopyToScreen {
-                    src_texture, src_rect, dst_rect } => {
-                        canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
-                    }
+                    src_texture,
+                    src_rect,
+                    dst_rect,
+                } => {
+                    canvas.copy(&textures[src_texture], src_rect, dst_rect)?;
+                }
             }
         }
         pf.sample("waterfall and pressed keys drawn");
@@ -294,4 +313,3 @@ fn main() -> Result<(), Box<std::error::Error>> {
     pf.output();
     Ok(())
 }
-

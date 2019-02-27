@@ -7,7 +7,7 @@ use piano_keyboard;
 
 use crate::midi_sequencer;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DrawCommand {
     CopyToScreen {
         src_texture: usize,
@@ -262,9 +262,19 @@ pub fn copy_waterfall_to_screen(
     rows_per_s: u32,
     pos_us: i64,
 ) -> Vec<DrawCommand> {
-    trace!("copy_wf_to_screen: n={} wf_width={} wf_height={}",n,wf_width,wf_height);
-    trace!("       net_rows={} overlap={} rows_per_s={} pos_us={}",
-            net_rows, overlap, rows_per_s, pos_us);
+    trace!(
+        "copy_wf_to_screen: n={} wf_width={} wf_height={}",
+        n,
+        wf_width,
+        wf_height
+    );
+    trace!(
+        "       net_rows={} overlap={} rows_per_s={} pos_us={}",
+        net_rows,
+        overlap,
+        rows_per_s,
+        pos_us
+    );
     // if pos_us = 0, then first texture bottom need to reach keyboard
     // Thus
     //      src_rect.x=net_rows+overlap-height,src_rect.height=height
@@ -321,17 +331,23 @@ pub fn copy_waterfall_to_screen(
         let y_dst_top = (y_dst_bottom - (cp_height as i64 - 1)) as i32;
         let y_dst = wf_height as i32 - y_dst_top - cp_height as i32;
         #[cfg(test)]
-        println!("y_dst_bottom={} y_dst_top={}  y_dst={}  bottom={}",
-                 y_dst_bottom,y_dst_top,y_dst,wf_height-1);
-        
-        let y_src = (overlap + net_rows) as i32 - cp_height as i32
+        println!(
+            "y_dst_bottom={} y_dst_top={}  y_dst={}  bottom={}",
+            y_dst_bottom,
+            y_dst_top,
+            y_dst,
+            wf_height - 1
+        );
+
+        let y_src = (overlap + net_rows) as i32
+            - cp_height as i32
             - (copy_row_top - tex_row_top).max(0) as i32;
 
         let src_rect = sdl2::rect::Rect::new(0, y_src, wf_width, cp_height);
         let dst_rect = sdl2::rect::Rect::new(0, y_dst, wf_width, cp_height);
         trace!("Copy {:?}->{:?}", src_rect, dst_rect);
         let cmd = DrawCommand::CopyToScreen {
-            src_texture: i+2,
+            src_texture: i + 2,
             src_rect,
             dst_rect,
         };
@@ -345,65 +361,77 @@ mod tests {
 
     #[test]
     fn test_01() {
-        let n=28;
-        let wf_width=4096;
-        let wf_height=1515;
-        let net_rows=907;
-        let overlap=93;
-        let rows_per_s=100;
-        let pos_us=6199732;
-        let mut cmds = draw_engine::copy_waterfall_to_screen(n,wf_width,wf_height,net_rows,
-                                               overlap,rows_per_s,pos_us);
-        assert_eq!(cmds.len(),3);
+        let n = 28;
+        let wf_width = 4096;
+        let wf_height = 1515;
+        let net_rows = 907;
+        let overlap = 93;
+        let rows_per_s = 100;
+        let pos_us = 6199732;
+        let mut cmds = draw_engine::copy_waterfall_to_screen(
+            n, wf_width, wf_height, net_rows, overlap, rows_per_s, pos_us,
+        );
+        assert_eq!(cmds.len(), 3);
         let mut dst_total_height = 0;
         let last = cmds.pop().unwrap();
         match last {
-            draw_engine::DrawCommand::CopyToScreen { src_texture,src_rect,dst_rect } => {
+            draw_engine::DrawCommand::CopyToScreen {
+                src_texture,
+                src_rect,
+                dst_rect,
+            } => {
                 // sdl bottom is UNDER the rectangle....
-                assert_eq!(src_rect.height() as i32+src_rect.top(),src_rect.bottom());
+                assert_eq!(src_rect.height() as i32 + src_rect.top(), src_rect.bottom());
 
                 // Last texture is on top. So destination y must be 0 and source y max
-                assert_eq!(src_texture,4);
-                assert_eq!(src_rect.left(),0); 
-                assert_eq!(src_rect.width(),wf_width); 
-                assert_eq!(dst_rect.left(),0); 
-                assert_eq!(dst_rect.width(),wf_width); 
-                assert_eq!(src_rect.height(),dst_rect.height()); 
-                assert_eq!((overlap + net_rows) as i32,src_rect.bottom());
-                dst_total_height += dst_rect.height(); 
-                assert_eq!(dst_rect.top(),0); 
+                assert_eq!(src_texture, 4);
+                assert_eq!(src_rect.left(), 0);
+                assert_eq!(src_rect.width(), wf_width);
+                assert_eq!(dst_rect.left(), 0);
+                assert_eq!(dst_rect.width(), wf_width);
+                assert_eq!(src_rect.height(), dst_rect.height());
+                assert_eq!((overlap + net_rows) as i32, src_rect.bottom());
+                dst_total_height += dst_rect.height();
+                assert_eq!(dst_rect.top(), 0);
             }
         }
         let second = cmds.pop().unwrap();
         match second {
-            draw_engine::DrawCommand::CopyToScreen { src_texture,src_rect,dst_rect } => {
+            draw_engine::DrawCommand::CopyToScreen {
+                src_texture,
+                src_rect,
+                dst_rect,
+            } => {
                 // Middle texture is in the middle
-                assert_eq!(src_texture,3);
-                assert_eq!(src_rect.left(),0); 
-                assert_eq!(src_rect.width(),wf_width); 
-                assert_eq!(dst_rect.left(),0); 
-                assert_eq!(dst_rect.width(),wf_width); 
-                assert_eq!(src_rect.height(),dst_rect.height()); 
-                dst_total_height += dst_rect.height(); 
+                assert_eq!(src_texture, 3);
+                assert_eq!(src_rect.left(), 0);
+                assert_eq!(src_rect.width(), wf_width);
+                assert_eq!(dst_rect.left(), 0);
+                assert_eq!(dst_rect.width(), wf_width);
+                assert_eq!(src_rect.height(), dst_rect.height());
+                dst_total_height += dst_rect.height();
             }
         }
         let first = cmds.pop().unwrap();
         match first {
-            draw_engine::DrawCommand::CopyToScreen { src_texture,src_rect,dst_rect } => {
+            draw_engine::DrawCommand::CopyToScreen {
+                src_texture,
+                src_rect,
+                dst_rect,
+            } => {
                 // First texture is at the bottom. So destination y must be max
                 // and source y equal overlap
-                assert_eq!(src_texture,2);
-                assert_eq!(src_rect.left(),0); 
-                assert_eq!(src_rect.width(),wf_width); 
-                assert_eq!(dst_rect.left(),0); 
-                assert_eq!(dst_rect.width(),wf_width); 
-                assert_eq!(src_rect.top(),overlap as i32); 
-                assert_eq!(src_rect.height(),dst_rect.height()); 
-                dst_total_height += dst_rect.height(); 
-                assert_eq!(dst_rect.bottom(),wf_height as i32);
+                assert_eq!(src_texture, 2);
+                assert_eq!(src_rect.left(), 0);
+                assert_eq!(src_rect.width(), wf_width);
+                assert_eq!(dst_rect.left(), 0);
+                assert_eq!(dst_rect.width(), wf_width);
+                assert_eq!(src_rect.top(), overlap as i32);
+                assert_eq!(src_rect.height(), dst_rect.height());
+                dst_total_height += dst_rect.height();
+                assert_eq!(dst_rect.bottom(), wf_height as i32);
             }
         }
         assert_eq!(dst_total_height, wf_height);
     }
 }
-
