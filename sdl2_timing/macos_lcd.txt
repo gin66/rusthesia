@@ -1,0 +1,24 @@
+display driver: "cocoa"
+dpi: Ok((135.75778, 136.0, 135.0))
+Screensaver: false
+Swap interval: Immediate
+false
+Swap interval: Immediate
+0: Display Mode: Ok(DisplayMode { format: ARGB8888, w: 1366, h: 768, refresh_rate: 60 })
+Window display Mode: Ok(DisplayMode { format: ARGB8888, w: 800, h: 600, refresh_rate: 60 })
+event received: Event::Window
+event received: Event::Window
+event received: Event::Window
+event received: Event::MouseMotion
+event received: Event::KeyDown
+event received: Event::TextInput
+event received: Event::KeyUp
+event received: Event::KeyDown
+event received: Event::TextInput
+event received: Event::KeyUp
+event received: Event::KeyDown
+min=     3us avg=    69us max=  2062us event loop
+min=    36us avg=    67us max=   438us Sdl2Timing: before present and clear
+min=   941us avg=  1685us max= 14422us Sdl2Timing: after present, before clear
+min=     9us avg=    17us max=    59us Sdl2Timing: after clear
+min=   501us avg=   861us max=  2922us Draw content to canvas

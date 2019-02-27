@@ -1,5 +1,5 @@
 use std::thread::sleep;
-use std::time::{Duration,Instant};
+use std::time::Duration;
 
 use log::*;
 
@@ -10,27 +10,31 @@ use sdl2_timing::Sdl2Timing;
 fn main() -> Result<(), Box<std::error::Error>> {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    info!(
+    println!(
         "display driver: {:?}",
         video_subsystem.current_video_driver()
     );
-    info!("dpi: {:?}", video_subsystem.display_dpi(0));
-    info!(
+    println!("dpi: {:?}", video_subsystem.display_dpi(0));
+    println!(
         "Screensaver: {:?}",
         video_subsystem.is_screen_saver_enabled()
     );
-    info!(
+    println!(
         "Swap interval: {:?}",
         video_subsystem.gl_get_swap_interval()
     );
-    info!(
+    println!(
         "{:?}",
         video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::VSync)
     );
-    info!(
+    println!(
         "Swap interval: {:?}",
         video_subsystem.gl_get_swap_interval()
     );
+    let nr_displays = video_subsystem.num_video_displays()?;
+    for i in 0..nr_displays {
+        println!("{}: Display Mode: {:?}", i, video_subsystem.current_display_mode(i));
+    }
 
     let window = video_subsystem
         .window(&format!("Demo"), 800, 600)
@@ -38,7 +42,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .resizable()
         .build()
         .unwrap();
-    info!("Display Mode: {:?}", window.display_mode());
+    println!("Window display Mode: {:?}", window.display_mode());
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
         .present_vsync()
@@ -80,13 +84,13 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     10,
                     10,
                 );
-                tex_canvas.fill_rect(r);
+                tex_canvas.fill_rect(r).unwrap(); // TODO
             }
         })?;
         canvas.copy(&texture, None, None)?;
-        pf.sample("copy keyboard to canvas");
+        pf.sample("Draw content to canvas");
 
-        let rem_us = loop {
+        loop {
             let rem_us = pf.us_till_next_frame();
             if rem_us > 5000 {
                 if let Some(event) = event_pump.poll_event() {
@@ -100,12 +104,16 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             keycode: Some(Keycode::Escape),
                             ..
                         } => break 'running,
+                        | Event::KeyDown {
+                            keycode: Some(Keycode::Space),
+                            ..
+                        } => pf.clear(),
                         _ => {}
                     }
                     continue; // next event
                 }
             }
-            break rem_us;
+            break;
         };
         pf.sample("event loop");
     }
