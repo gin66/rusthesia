@@ -55,11 +55,10 @@ pub struct Sdl2Timing<'a> {
     last_us: u64,
     stamp: Option<Instant>,
     ms_per_frame: u32,
-    us_per_frame: u32,
+    opt_us_per_frame: Option<u32>,
     base_time: Option<Instant>,
     measured: bool,
     initialized: bool,
-    last_frame: u64,
     has_vsync: bool,
     lost_frames_cnt: usize,
     measures: HashMap<&'a str,(u64,u64,u64,usize)>,
@@ -88,8 +87,7 @@ impl<'a> Sdl2Timing<'a> {
             canvas.present();
         }
         debug!("Measured round times in us: {:?}",round_us_vec);
-        if round_us_vec.len() > 5 {
-            self.has_vsync = true;
+        if round_us_vec.len() > 2 {
             round_us_vec.sort();
             let median = round_us_vec[round_us_vec.len()/2];
             let upper = median * 21/20;
@@ -99,9 +97,16 @@ impl<'a> Sdl2Timing<'a> {
                                                 .filter(|&dt| (dt < upper) && (dt > lower))
                                                 .collect::<Vec<_>>();
             debug!("Filtered times +/-5%: {:?}",filtered_round_us);
-            self.us_per_frame = (filtered_round_us.iter().cloned().sum::<u64>()
+            let us_per_frame = (filtered_round_us.iter().cloned().sum::<u64>()
                                         / filtered_round_us.len() as u64) as u32;
-            debug!("Calculated frame rate= {:?} us/frame",filtered_round_us);
+            debug!("Calculated frame rate= {} us/frame",us_per_frame);
+            if us_per_frame > 1_000_000/250 && us_per_frame < 1_000_000/10 {
+                self.has_vsync = true;
+                self.opt_us_per_frame = Some(us_per_frame);
+            }
+            else {
+                debug!("...outside acceptance window 10..250Hz");
+            }
         }
         self.sample("measured");
     }
@@ -112,6 +117,12 @@ impl<'a> Sdl2Timing<'a> {
                                      canvas: &mut Canvas<Window>,
                                      color: sdl2::pixels::Color) {
         if self.initialized {
+            if !self.has_vsync {
+                let rem_us = self.us_till_next_frame();
+                let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
+                std::thread::sleep(sleep_duration);
+                self.sample("sleep");
+            }
             self.sample("Sdl2Timing: before present and clear");
             canvas.present();
             self.sample("Sdl2Timing: after present, before clear");
@@ -123,6 +134,9 @@ impl<'a> Sdl2Timing<'a> {
 
             self.ms_per_frame = 40;
             if !self.measured {
+                // Due to double buffering ensure both buffers are filled
+                // with the initial color. Otherwise swapping during
+                // measurement would lead to flicker.
                 canvas.set_draw_color(color);
                 canvas.clear();
                 canvas.present();
@@ -134,13 +148,8 @@ impl<'a> Sdl2Timing<'a> {
         }
         canvas.set_draw_color(color);
         canvas.clear();
+        self.base_time = Some(Instant::now());
         self.sample("Sdl2Timing: after clear");
-
-        let rem_us = 1_000;
-        let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
-        trace!("before sleep {:?}", sleep_duration);
-        std::thread::sleep(sleep_duration);
-        self.sample("sleep");
     }
     pub fn sample(&mut self, name: &'a str) {
         if !self.measures.contains_key(&name) {
@@ -161,14 +170,47 @@ impl<'a> Sdl2Timing<'a> {
     pub fn clear(&mut self) {
         self.measures.clear();
     }
+    pub fn us_till_next_frame(&mut self) -> u32 {
+        if let Some(base_time) = self.base_time.as_ref() {
+            let elapsed = base_time.elapsed();
+            let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
+            let mut us_per_frame = self.ms_per_frame as u64 * 1_000;
+            if self.has_vsync {
+                if let Some(upf) = self.opt_us_per_frame {
+                    us_per_frame = upf as u64;
+                }
+            }
+            if elapsed_us > us_per_frame {
+                warn!("FRAME(S) LOST");
+                self.lost_frames_cnt += 1;
+                0
+            }
+            else {
+                let rem_us = (us_per_frame - elapsed_us) as u32;
+                rem_us.max(1_000)-1_000 //TODO: represents time for clear+present
+            }
+        } else {
+            error!("This path should not be taken");
+            self.base_time = Some(Instant::now());
+            0
+        }
+    }
     pub fn output(&self) {
         if self.has_vsync {
             println!("VSYNC is in use");
+            if let Some(us_per_frame) = self.opt_us_per_frame {
+                println!("measured frame rate= {} us/frame",us_per_frame);
+            }
+            else {
+                println!("...but no frame rate !?");
+            }
         }
         else {
             println!("VSYNC not detected");
         }
-        println!("frame rate= {} us/frame",self.us_per_frame);
+        if self.lost_frames_cnt > 0 {
+            println!("Lost frame happened: {} times", self.lost_frames_cnt);
+        }
         for (name, (us_min,us_sum,us_max,cnt)) in self.measures.iter() {
             println!(
                   "cnt={:6} min={:6.6}us avg={:6.6}us max={:6.6}us {}",
@@ -180,25 +222,6 @@ impl<'a> Sdl2Timing<'a> {
                     "Sleep time {:.2} ms - {} times", i, self.sleep_time_stats[i]
                 );
             }
-        }
-    //info!(target: EV, "Lost frames: {}", control.lost_frames_cnt());
-    }
-    pub fn us_till_next_frame(&mut self) -> u32 {
-        if let Some(base_time) = self.base_time.as_ref() {
-            let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
-            let us_per_frame = self.ms_per_frame as u64 * 1_000;
-            let curr_frame = elapsed_us / us_per_frame;
-            let lost_frames = curr_frame - self.last_frame;
-            self.last_frame = curr_frame;
-            if lost_frames > 1 {
-                warn!("{} FRAME(S) LOST", lost_frames - 1);
-                self.lost_frames_cnt += 1;
-            }
-            (us_per_frame - (elapsed_us - curr_frame * us_per_frame)) as u32
-        } else {
-            self.base_time = Some(Instant::now());
-            0
         }
     }
 }
