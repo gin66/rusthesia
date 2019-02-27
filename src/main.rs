@@ -20,44 +20,6 @@ mod usage; // Hacked version of stderrlog crate
 const EV: &str = &"eventloop";
 const SDL: &str = &"sdl";
 
-#[derive(Default)]
-struct PerfMonitor<'a> {
-    index: usize,
-    last_us: u64,
-    stamp: Option<Instant>,
-    measures: Vec<(u64,u64,u64,usize,&'a str)>,
-}
-impl<'a> PerfMonitor<'a> {
-    pub fn next_loop(&mut self) {
-        self.index = 0;
-        self.last_us = 0;
-        self.stamp = Some(Instant::now());
-    }
-    pub fn sample(&mut self, name: &'a str) {
-        if self.measures.len() <= self.index {
-            self.measures.push( (u64::max_value(),0,0,0,name) );
-        }
-        let elapsed = self.stamp.as_ref().unwrap().elapsed();
-        let elapsed_us = elapsed.subsec_micros() as u64;
-        let dt_us = elapsed_us - self.last_us;
-        self.last_us = elapsed_us;
-
-        let m = &mut self.measures[self.index];
-        m.0 = m.0.min(dt_us);
-        m.1 += dt_us;
-        m.2 = m.2.max(dt_us);
-        m.3 += 1;
-        self.index += 1;
-    }
-    pub fn output(&self) {
-        for (us_min,us_sum,us_max,cnt,name) in &self.measures {
-            info!(target: EV,
-                  "min={:6.6}us avg={:6.6}us max={:6.6}us {}",
-                  us_min,us_sum/ *cnt as u64,us_max,name);
-        }
-    }
-}
-
 fn main() -> Result<(), Box<std::error::Error>> {
     let matches = usage::usage();
     let mut control = app_control::AppControl::from_clap(matches);
@@ -171,7 +133,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     'running: loop {
         trace!(target: EV, "at loop start");
-        pf.canvas_present_then_clear(&mut canvas);
+        let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
+        pf.canvas_present_then_clear(&mut canvas, bg_color);
 
         if control.seq_is_finished() {
             break;

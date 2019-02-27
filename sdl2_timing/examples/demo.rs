@@ -53,7 +53,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     'running: loop {
         trace!("at loop start");
-        pf.canvas_present_then_clear(&mut canvas);
+        let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
+        pf.canvas_present_then_clear(&mut canvas, bg_color);
 
         let rec = canvas.viewport();
         let width = rec.width();

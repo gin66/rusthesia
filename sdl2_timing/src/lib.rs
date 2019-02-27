@@ -1,40 +1,43 @@
 use log::*;
 use std::thread::sleep;
 use std::time::{Duration,Instant};
+use std::collections::HashMap;
+
+use sdl2::render::Canvas;
+use sdl2::video::Window;
 
 #[derive(Default)]
 pub struct Sdl2Timing<'a> {
-    index: usize,
     last_us: u64,
     stamp: Option<Instant>,
     ms_per_frame: u32,
     base_time: Option<Instant>,
     measured: bool,
-    need_present: bool,
+    initialized: bool,
     last_frame: u64,
     lost_frames_cnt: usize,
-    measures: Vec<(u64,u64,u64,usize,&'a str)>,
+    measures: HashMap<&'a str,(u64,u64,u64,usize)>,
     sleep_time_stats: Vec<u32>, // millisecond resolution
 }
 impl<'a> Sdl2Timing<'a> {
     pub fn sample(&mut self, name: &'a str) {
-        if self.measures.len() <= self.index {
-            self.measures.push( (u64::max_value(),0,0,0,name) );
+        if !self.measures.contains_key(&name) {
+            self.measures.insert(&name, (u64::max_value(),0,0,0));
         }
+        let mut m = self.measures.get_mut(&name).unwrap();
         let elapsed = self.stamp.as_ref().unwrap().elapsed();
-        let elapsed_us = elapsed.subsec_micros() as u64 + 1_000_000 * elapsed.as_secs();
+        let elapsed_us = elapsed.subsec_micros() as u64
+                        + 1_000_000 * elapsed.as_secs();
         let dt_us = elapsed_us - self.last_us;
         self.last_us = elapsed_us;
 
-        let m = &mut self.measures[self.index];
         m.0 = m.0.min(dt_us);
         m.1 += dt_us;
         m.2 = m.2.max(dt_us);
         m.3 += 1;
-        self.index += 1;
     }
     pub fn output(&self) {
-        for (us_min,us_sum,us_max,cnt,name) in &self.measures {
+        for (name, (us_min,us_sum,us_max,cnt)) in self.measures.iter() {
             println!(
                   "min={:6.6}us avg={:6.6}us max={:6.6}us {}",
                   us_min,us_sum/ *cnt as u64,us_max,name);
@@ -49,24 +52,23 @@ impl<'a> Sdl2Timing<'a> {
     //info!(target: EV, "Lost frames: {}", control.lost_frames_cnt());
     }
     pub fn canvas_present_then_clear(&mut self, 
-                                     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>) {
-        self.index = 0;
-        self.last_us = 0;
-        self.stamp = Some(Instant::now());
-
-        self.ms_per_frame = 40;
-
-        // Measure framerate
-        if self.need_present {
+                                     canvas: &mut Canvas<Window>,
+                                     color: sdl2::pixels::Color) {
+        if self.initialized {
             canvas.present();
         }
-        self.need_present = true;
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(50, 50, 50));
+        else {
+            self.last_us = 0;
+            self.stamp = Some(Instant::now());
+            self.initialized = true;
+
+            self.ms_per_frame = 40;
+        }
+        canvas.set_draw_color(color);
         canvas.clear();
 
+        self.measured = true;
         if !self.measured {
-            self.measured = true;
-            let base_measure = Instant::now();
             for d in vec![50_000,50_000,50_000,
                           40_000,40_000,40_000,
                           30_000,30_000,30_000,
