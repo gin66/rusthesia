@@ -1,0 +1,24 @@
+display driver: "x11"
+dpi: Ok((144.81445, 146.94688, 137.84924))
+Screensaver: false
+Swap interval: Immediate
+false
+Swap interval: Immediate
+0: Display Mode: Ok(DisplayMode { format: RGB888, w: 4096, h: 2160, refresh_rate: 24 })
+Window display Mode: Ok(DisplayMode { format: RGB888, w: 800, h: 600, refresh_rate: 60 })
+event received: Event::Window
+event received: Event::Window
+event received: Event::Window
+event received: Event::Window
+event received: Event::Window
+event received: Event::Window
+event received: Event::Window
+event received: Event::KeyDown
+event received: Event::TextInput
+event received: Event::KeyUp
+event received: Event::KeyDown
+min=     6us avg=     6us max=    18us Sdl2Timing: before present and clear
+min=    45us avg=    84us max=   100us Sdl2Timing: after present, before clear
+min= 41383us avg= 41452us max= 41496us Sdl2Timing: after clear
+min=   104us avg=   109us max=   119us Draw content to canvas
+min=     3us avg=    13us max=    73us event loop
