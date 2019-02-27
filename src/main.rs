@@ -303,7 +303,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 }
             }
             break;
-        };
+        }
         pf.sample("event loop");
 
         control.update_position_if_scrolling();
