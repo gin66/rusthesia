@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .resizable()
         .build()
         .unwrap();
-    println!("Window display Mode: {:?}", window.display_mode());
+    let mut st = Sdl2Timing::new_for(&video_subsystem, &window)?;
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
         .present_vsync()
@@ -52,13 +52,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     //event_pump.disable_event(sdl2::event::EventType::Window);
 
-    let mut pf = Sdl2Timing::default();
     let mut x_vals = vec![10;30];
 
     'running: loop {
         trace!("at loop start");
         let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
-        pf.canvas_present_then_clear(&mut canvas, bg_color);
+        st.canvas_present_then_clear(&mut canvas, bg_color);
 
         let rec = canvas.viewport();
         let width = rec.width();
@@ -88,10 +87,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         })?;
         canvas.copy(&texture, None, None)?;
-        pf.sample("Draw content to canvas");
+        st.sample("Draw content to canvas");
 
         loop {
-            let rem_us = pf.us_till_next_frame();
+            let rem_us = st.us_till_next_frame();
             if rem_us > 5000 {
                 if let Some(event) = event_pump.poll_event() {
                     println!("event received: {:?}", event);
@@ -107,7 +106,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         | Event::KeyDown {
                             keycode: Some(Keycode::Space),
                             ..
-                        } => pf.clear(),
+                        } => st.clear(),
                         _ => {}
                     }
                     continue; // next event
@@ -115,11 +114,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
             break;
         };
-        pf.sample("event loop");
+        st.sample("event loop");
     }
     sleep(Duration::from_millis(150));
 
-    pf.output();
+    st.output();
     Ok(())
 }
 
