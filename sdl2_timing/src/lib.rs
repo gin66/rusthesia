@@ -117,11 +117,12 @@ impl<'a> Sdl2Timing<'a> {
         let start_measure = Instant::now();
         let mut round_us_vec = vec![];
         let mut opt_last_round_us = None;
+        let measurement_time_us = 300_000;
         loop {
             let elapsed = start_measure.elapsed();
             let elapsed_us = elapsed.subsec_micros() as u64
                             + 1_000_000*elapsed.as_secs();
-            if elapsed_us > 300_000 {
+            if elapsed_us > measurement_time_us {
                 break;
             }
             if let Some(last_round_us) = opt_last_round_us {
@@ -145,15 +146,20 @@ impl<'a> Sdl2Timing<'a> {
                                                 .filter(|&dt| (dt < upper) && (dt > lower))
                                                 .collect::<Vec<_>>();
             debug!("Filtered times +/-5%: {:?}",filtered_round_us);
-            let us_per_frame = (filtered_round_us.iter().cloned().sum::<u64>()
-                                        / filtered_round_us.len() as u64) as u32;
+            let sum_round_us: u64 = filtered_round_us.iter().cloned().sum::<u64>();
+            let us_per_frame = (sum_round_us / filtered_round_us.len() as u64) as u32;
             debug!("Calculated frame rate= {} us/frame",us_per_frame);
-            if us_per_frame > 1_000_000/170 && us_per_frame < 1_000_000/10 {
-                self.has_vsync = true;
-                self.opt_us_per_frame = Some(us_per_frame);
+            if sum_round_us > measurement_time_us/3 {
+                if us_per_frame > 1_000_000/170 && us_per_frame < 1_000_000/10 {
+                    self.has_vsync = true;
+                    self.opt_us_per_frame = Some(us_per_frame);
+                }
+                else {
+                    debug!("...outside acceptance window 10..170Hz");
+                }
             }
             else {
-                debug!("...outside acceptance window 10..170Hz");
+                debug!("...not enough significant loop times");
             }
         }
         self.sample("measurement");
