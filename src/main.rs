@@ -129,6 +129,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .build()
         .unwrap();
     info!(target: SDL, "Display Mode: {:?}", window.display_mode());
+    let mut st = Sdl2Timing::new_for(&video_subsystem, &window)?;
+
     //let window_context = window.context();
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
@@ -144,12 +146,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
-    let mut pf = Sdl2Timing::default();
-
     'running: loop {
         trace!(target: EV, "at loop start");
         let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
-        pf.canvas_present_then_clear(&mut canvas, bg_color);
+        st.canvas_present_then_clear(&mut canvas, bg_color);
 
         if control.seq_is_finished() {
             break;
@@ -158,7 +158,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if control.need_redraw() {
             textures.clear();
         }
-        pf.sample("control at loop start");
+        st.sample("control at loop start");
 
         let rec = canvas.viewport();
         let width = rec.width();
@@ -185,7 +185,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         if width != keyboard.width as u32 {
             textures.clear();
         }
-        pf.sample("keyboard built");
+        st.sample("keyboard built");
 
         if textures.len() == 0 {
             trace!("Create keyboard textures");
@@ -204,7 +204,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 textures.push(texture);
             }
         }
-        pf.sample("keyboard drawn");
+        st.sample("keyboard drawn");
 
         // Copy keyboard with unpressed keys
         let dst_rec = sdl2::rect::Rect::new(
@@ -214,7 +214,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             keyboard.height as u32,
         );
         canvas.copy(&textures[0], None, dst_rec)?;
-        pf.sample("copy keyboard to canvas");
+        st.sample("copy keyboard to canvas");
 
         if control.show_events().is_some() {
             if textures.len() <= 2 {
@@ -249,7 +249,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 }
             }
         }
-        pf.sample("waterfall textures created and drawn");
+        st.sample("waterfall textures created and drawn");
 
         let draw_commands = if control.show_events().is_some() {
             let pos_us = control.get_pos_us_at_next_frame();
@@ -274,7 +274,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
         } else {
             vec![]
         };
-        pf.sample("waterfall and pressed keys commands generated");
+        st.sample("waterfall and pressed keys commands generated");
 
         trace!(target: EV, "before drawing to screen");
         for cmd in draw_commands.into_iter() {
@@ -288,11 +288,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 }
             }
         }
-        pf.sample("waterfall and pressed keys drawn");
+        st.sample("waterfall and pressed keys drawn");
 
         trace!(target: EV, "before Eventloop");
         loop {
-            let rem_us = pf.us_till_next_frame();
+            let rem_us = st.us_till_next_frame();
             if rem_us > 5000 {
                 if let Some(event) = event_pump.poll_event() {
                     trace!("event received: {:?}", event);
@@ -304,12 +304,12 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
             break;
         }
-        pf.sample("event loop");
+        st.sample("event loop");
 
         control.update_position_if_scrolling();
     }
     sleep(Duration::from_millis(150));
 
-    pf.output();
+    st.output();
     Ok(())
 }

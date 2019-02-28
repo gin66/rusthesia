@@ -50,11 +50,10 @@ use std::collections::HashMap;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-#[derive(Default)]
 pub struct Sdl2Timing<'a> {
     last_us: u64,
     stamp: Option<Instant>,
-    ms_per_frame: u32,
+    sdl2_us_per_frame: u32,
     opt_us_per_frame: Option<u32>,
     base_time: Option<Instant>,
     measured: bool,
@@ -62,9 +61,55 @@ pub struct Sdl2Timing<'a> {
     has_vsync: bool,
     lost_frames_cnt: usize,
     measures: HashMap<&'a str,(u64,u64,u64,usize)>,
-    sleep_time_stats: Vec<u32>, // millisecond resolution
+    display_mode: sdl2::video::DisplayMode,
+    display_name: String,
 }
 impl<'a> Sdl2Timing<'a> {
+    pub fn new_for(
+                vs: &'a sdl2::VideoSubsystem,
+                win: &Window) -> Result<Sdl2Timing<'a>, String> {
+        let display_index = win.display_index()?;
+        for i in 0..vs.num_video_displays()? {
+            let display_mode = vs.current_display_mode(i)?;
+            let display_name = vs.display_name(i)?;
+            let selected = if i == display_index {
+                " <= displays my window"
+            }
+            else {
+                ""
+            };
+            info!("Display {} named '{}' uses mode {:?} {}",
+                   i,
+                   display_name,
+                   display_mode,
+                   selected);
+        }
+        let display_mode = vs.current_display_mode(display_index)?;
+        let display_name = vs.display_name(display_index)?;
+        let sdl2_us_per_frame = 1_000_000 / display_mode.refresh_rate;
+        Ok(Sdl2Timing {
+            last_us: 0,
+            stamp: None,
+            sdl2_us_per_frame: 0,
+            opt_us_per_frame: None,
+            base_time: None,
+            measured: false,
+            initialized: false,
+            has_vsync: false,
+            lost_frames_cnt: 0,
+            display_mode,
+            display_name,
+            measures: HashMap::new(),
+        })
+    }
+    pub fn get_us_per_frame(&self) -> u32 {
+        if self.has_vsync {
+            if let Some(us_per_frame) = self.opt_us_per_frame {
+                return us_per_frame;
+            }
+        }
+        self.sdl2_us_per_frame
+    }
     fn measure(&mut self, canvas: &mut Canvas<Window>) {
         let start_measure = Instant::now();
         let mut round_us_vec = vec![];
@@ -132,7 +177,6 @@ impl<'a> Sdl2Timing<'a> {
             self.stamp = Some(Instant::now());
             self.initialized = true;
 
-            self.ms_per_frame = 40;
             if !self.measured {
                 // Due to double buffering ensure both buffers are filled
                 // with the initial color. Otherwise swapping during
@@ -173,13 +217,9 @@ impl<'a> Sdl2Timing<'a> {
     pub fn us_till_next_frame(&mut self) -> u32 {
         if let Some(base_time) = self.base_time.as_ref() {
             let elapsed = base_time.elapsed();
-            let elapsed_us = elapsed.subsec_micros() as u64 + elapsed.as_secs() * 1_000_000;
-            let mut us_per_frame = self.ms_per_frame as u64 * 1_000;
-            if self.has_vsync {
-                if let Some(upf) = self.opt_us_per_frame {
-                    us_per_frame = upf as u64;
-                }
-            }
+            let elapsed_us = elapsed.subsec_micros() as u64 
+                                + elapsed.as_secs() * 1_000_000;
+            let us_per_frame = self.get_us_per_frame() as u64;
             if elapsed_us > us_per_frame {
                 warn!("FRAME(S) LOST");
                 self.lost_frames_cnt += 1;
@@ -215,13 +255,6 @@ impl<'a> Sdl2Timing<'a> {
             println!(
                   "cnt={:6} min={:6.6}us avg={:6.6}us max={:6.6}us {}",
                   cnt,us_min,us_sum/ *cnt as u64,us_max,name);
-        }
-        for i in 0..self.sleep_time_stats.len() {
-            if self.sleep_time_stats[i] > 0 {
-                info!(
-                    "Sleep time {:.2} ms - {} times", i, self.sleep_time_stats[i]
-                );
-            }
         }
     }
 }
