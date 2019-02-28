@@ -50,6 +50,7 @@ use std::collections::HashMap;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
+#[allow(dead_code)]
 pub struct Sdl2Timing<'a> {
     last_us: u64,
     stamp: Option<Instant>,
@@ -86,11 +87,13 @@ impl<'a> Sdl2Timing<'a> {
         }
         let display_mode = vs.current_display_mode(display_index)?;
         let display_name = vs.display_name(display_index)?;
-        let sdl2_us_per_frame = 1_000_000 / display_mode.refresh_rate;
+        let sdl2_us_per_frame = 1_000_000 / display_mode.refresh_rate as u32;
+        println!("{}",display_mode.refresh_rate);
+        assert!(sdl2_us_per_frame > 0);
         Ok(Sdl2Timing {
             last_us: 0,
             stamp: None,
-            sdl2_us_per_frame: 0,
+            sdl2_us_per_frame,
             opt_us_per_frame: None,
             base_time: None,
             measured: false,
@@ -123,12 +126,12 @@ impl<'a> Sdl2Timing<'a> {
             }
             if let Some(last_round_us) = opt_last_round_us {
                 let round_us = elapsed_us - last_round_us;
-                if round_us > 1_000_000/250 { // Cap at 250 Hz
+                if round_us > 1_000_000/170 { // Cap at 170 Hz
                     round_us_vec.push(round_us);
                 }
             }
             opt_last_round_us = Some(elapsed_us);
-            sleep(Duration::from_micros(1_000));
+            sleep(Duration::from_micros(200));
             canvas.present();
         }
         debug!("Measured round times in us: {:?}",round_us_vec);
@@ -145,15 +148,15 @@ impl<'a> Sdl2Timing<'a> {
             let us_per_frame = (filtered_round_us.iter().cloned().sum::<u64>()
                                         / filtered_round_us.len() as u64) as u32;
             debug!("Calculated frame rate= {} us/frame",us_per_frame);
-            if us_per_frame > 1_000_000/250 && us_per_frame < 1_000_000/10 {
+            if us_per_frame > 1_000_000/170 && us_per_frame < 1_000_000/10 {
                 self.has_vsync = true;
                 self.opt_us_per_frame = Some(us_per_frame);
             }
             else {
-                debug!("...outside acceptance window 10..250Hz");
+                debug!("...outside acceptance window 10..170Hz");
             }
         }
-        self.sample("measured");
+        self.sample("measurement");
     }
     /// It should be called at beginning of the main loop with the display
     /// canvas as argument and the color, which should be used to clear the canvas.
@@ -220,9 +223,10 @@ impl<'a> Sdl2Timing<'a> {
             let elapsed_us = elapsed.subsec_micros() as u64 
                                 + elapsed.as_secs() * 1_000_000;
             let us_per_frame = self.get_us_per_frame() as u64;
+            assert!(us_per_frame > 0);
             if elapsed_us > us_per_frame {
-                warn!("FRAME(S) LOST");
                 self.lost_frames_cnt += 1;
+                warn!("FRAME(S) LOST: {}",self.lost_frames_cnt);
                 0
             }
             else {
