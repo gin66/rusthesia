@@ -36,20 +36,20 @@ matrix:
 
     # Linux
     #- env: TARGET=aarch64-unknown-linux-gnu
-      #- env: TARGET=arm-unknown-linux-gnueabi
-      #- env: TARGET=armv7-unknown-linux-gnueabihf
-      #- env: TARGET=i686-unknown-linux-gnu
-      #- env: TARGET=i686-unknown-linux-musl
-      #- env: TARGET=mips-unknown-linux-gnu
-      #- env: TARGET=mips64-unknown-linux-gnuabi64
-      #- env: TARGET=mips64el-unknown-linux-gnuabi64
-      #- env: TARGET=mipsel-unknown-linux-gnu
-      #- env: TARGET=powerpc-unknown-linux-gnu
-      #- env: TARGET=powerpc64-unknown-linux-gnu
-      #- env: TARGET=powerpc64le-unknown-linux-gnu
-      #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
-      - env: TARGET=x86_64-unknown-linux-gnu
-      #- env: TARGET=x86_64-unknown-linux-musl
+    #- env: TARGET=arm-unknown-linux-gnueabi
+    #- env: TARGET=armv7-unknown-linux-gnueabihf
+    #- env: TARGET=i686-unknown-linux-gnu
+    #- env: TARGET=i686-unknown-linux-musl
+    #- env: TARGET=mips-unknown-linux-gnu
+    #- env: TARGET=mips64-unknown-linux-gnuabi64
+    #- env: TARGET=mips64el-unknown-linux-gnuabi64
+    #- env: TARGET=mipsel-unknown-linux-gnu
+    #- env: TARGET=powerpc-unknown-linux-gnu
+    #- env: TARGET=powerpc64-unknown-linux-gnu
+    #- env: TARGET=powerpc64le-unknown-linux-gnu
+    #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
+    - env: TARGET=x86_64-unknown-linux-gnu
+    #- env: TARGET=x86_64-unknown-linux-musl
 
     # OSX
     #- env: TARGET=i686-apple-darwin
@@ -83,22 +83,23 @@ matrix:
 before_install:
   - set -e
   - rustup self update
+
 addons:
   apt:
     packages:
-    - librtaudio-dev
-    - libsdl2-2.0
-    - cmake
-    - libfreetype6-dev
-    - libsdl2-dev
-    - libsdl2-gfx-dev
-    - libsdl2-ttf-dev
-    - libfontconfig1-dev
+      - librtaudio-dev
+      - libsdl2-2.0
+      - cmake
+      - libfreetype6-dev
+      - libsdl2-dev
+      - libsdl2-gfx-dev
+      - libsdl2-ttf-dev
+      - libfontconfig1-dev
   homebrew:
     packages:
-    - sdl2
-    - sdl2_gfx
-    - sdl2_ttf
+      - sdl2
+      - sdl2_gfx
+      - sdl2_ttf
 
 install:
   - sh ci/install.sh
@@ -113,10 +114,10 @@ after_script: set +e
 #  - sh ci/before_deploy.sh
 
 #deploy:
-  # TODO update `api_key.secure`
-  # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
-  # - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789
-  # - Paste the output down here
+# TODO update `api_key.secure`
+# - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
+# - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789
+# - Paste the output down here
 #  api_key:
 #    secure: 
 #  file_glob: true
