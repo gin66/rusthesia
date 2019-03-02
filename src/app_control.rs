@@ -338,19 +338,8 @@ impl AppControl {
         self.sequencer = Some(sequencer);
         Ok(())
     }
-    pub fn get_pos_us_at_next_frame(&mut self) -> i64 {
-        //if let Some(base_time) = self.base_time.as_ref() {
-        //    let elapsed = base_time.elapsed();
-        //    let elapsed_us = elapsed.subsec_micros();
-        //    let us_per_frame = self.ms_per_frame() * 1_000;
-        //    let rem_us = us_per_frame - elapsed_us % us_per_frame;
-        //    let rem_dur = Duration::new(0, rem_us * 1_000);
-        //    self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
-        //} else {
-        //    0
-        //}
-        // TODO
-        let rem_dur = Duration::new(0, 1 * 1_000);
+    pub fn get_pos_us_after(&mut self, dt_us: u32) -> i64 {
+        let rem_dur = Duration::new(0, dt_us * 1_000);
         self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
     }
     pub fn read_midi_file(

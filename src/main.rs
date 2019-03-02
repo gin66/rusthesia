@@ -252,7 +252,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
         st.sample("waterfall textures created and drawn");
 
         let draw_commands = if control.show_events().is_some() {
-            let pos_us = control.get_pos_us_at_next_frame();
+            let rem_us = st.us_till_next_frame();
+            let pos_us = control.get_pos_us_after(rem_us);
 
             let mut draw_commands_1 = draw_engine::get_pressed_key_rectangles(
                 &keyboard,

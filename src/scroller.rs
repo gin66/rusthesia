@@ -43,9 +43,6 @@ impl Scroller {
         self.state = ScrollerState::Inactive;
         scrolling
     }
-    fn get_ms(&mut self) -> u32 {
-        0
-    }
     pub fn update_move(&mut self, y: f32) -> bool {
         let (state, moving) = match self.state {
             ScrollerState::FreeRunning(_) | ScrollerState::Inactive => {
