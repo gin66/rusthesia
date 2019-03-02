@@ -87,6 +87,7 @@ before_install:
 addons:
   apt:
     packages:
+      - alsa-base
       - libasound2
       - libasound2-dev
       - librtaudio-dev
