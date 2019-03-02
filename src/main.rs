@@ -140,9 +140,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut textures: Vec<sdl2::render::Texture> = vec![];
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    //event_pump.disable_event(sdl2::event::EventType::Window);
 
-    let mut opt_keyboard: Option<piano_keyboard::Keyboard2d> = None;
     let rows_per_s = 100;
     let waterfall_tex_height = 1000;
 
@@ -155,66 +153,69 @@ fn main() -> Result<(), Box<std::error::Error>> {
             break;
         }
         control.next_loop();
-        if control.need_redraw() {
+
+        let rec = canvas.viewport();
+        let width = rec.width();
+        if control.need_redraw(width as u16) {
             textures.clear();
         }
         st.sample("control at loop start");
 
-        let rec = canvas.viewport();
-        let width = rec.width();
+        trace!(target: EV, "before Eventloop");
+        loop {
+            let rem_us = st.us_till_next_frame();
+            if rem_us > 5000 {
+                if let Some(event) = event_pump.poll_event() {
+                    trace!("event received: {:?}", event);
+                    if !sdl_event_processor::process_event(event, &mut control) {
+                        break 'running; // Exit loop
+                    }
+                    continue; // next event
+                }
+            }
+            break;
+        }
+        st.sample("event loop");
+
         let waterfall_overlap = 2 * width / nr_of_keys as u32; // ensure even
         let waterfall_net_height = waterfall_tex_height - waterfall_overlap;
 
-        if opt_keyboard.is_some() {
-            if opt_keyboard.as_ref().unwrap().width != width as u16 {
-                opt_keyboard = None;
-            }
-        }
-        if opt_keyboard.is_none() {
-            trace!("Create Keyboard");
-            textures.clear();
-            opt_keyboard = Some(
-                piano_keyboard::KeyboardBuilder::new()
-                    .set_width(rec.width() as u16)?
-                    .white_black_gap_present(true)
-                    .set_most_left_right_white_keys(control.left_key(), control.right_key())?
-                    .build2d(),
-            );
-        }
-        let keyboard = opt_keyboard.as_ref().unwrap();
-        if width != keyboard.width as u32 {
-            textures.clear();
-        }
-        st.sample("keyboard built");
-
         if textures.len() == 0 {
             trace!("Create keyboard textures");
-            // Texture 0 are for unpressed and 1 for pressed keys
-            for pressed in vec![false, true].drain(..) {
-                let mut texture = texture_creator
-                    .create_texture_target(
-                        texture_creator.default_pixel_format(),
-                        width,
-                        keyboard.height as u32,
-                    )
-                    .unwrap();
-                canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                    draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
-                })?;
-                textures.push(texture);
+            if let Some(keyboard) = control.get_keyboard() {
+                // Texture 0 are for unpressed and 1 for pressed keys
+                for pressed in vec![false, true].drain(..) {
+                    let mut texture = texture_creator
+                        .create_texture_target(
+                            texture_creator.default_pixel_format(),
+                            width,
+                            keyboard.height as u32,
+                        )
+                        .unwrap();
+                    canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                        draw_engine::draw_keyboard(keyboard, tex_canvas, pressed).ok();
+                    })?;
+                    textures.push(texture);
+                }
+                st.sample("keyboard drawn");
             }
         }
-        st.sample("keyboard drawn");
 
-        // Copy keyboard with unpressed keys
-        let dst_rec = sdl2::rect::Rect::new(
-            0,
-            (rec.height() - keyboard.height as u32 - 1) as i32,
-            width,
-            keyboard.height as u32,
-        );
-        canvas.copy(&textures[0], None, dst_rec)?;
-        st.sample("copy keyboard to canvas");
+        if textures.len() == 0 {
+            continue;
+        }
+
+        if let Some(keyboard) = control.get_keyboard() {
+            // Copy keyboard with unpressed keys
+            let dst_rec = sdl2::rect::Rect::new(
+                0,
+                (rec.height() - keyboard.height as u32 - 1) as i32,
+                width,
+                keyboard.height as u32,
+            );
+            canvas.copy(&textures[0], None, dst_rec)?;
+            st.sample("copy keyboard to canvas");
+        }
 
         if control.show_events().is_some() {
             if textures.len() <= 2 {
@@ -233,18 +234,20 @@ fn main() -> Result<(), Box<std::error::Error>> {
                             waterfall_tex_height,
                         )
                         .unwrap();
-                    canvas.with_texture_canvas(&mut texture, |tex_canvas| {
-                        draw_engine::draw_waterfall(
-                            keyboard,
-                            tex_canvas,
-                            i,
-                            i * waterfall_net_height,
-                            waterfall_net_height,
-                            waterfall_overlap,
-                            rows_per_s,
-                            &control.show_events().unwrap(),
-                        );
-                    })?;
+                    if let Some(keyboard) = control.get_keyboard() {
+                        canvas.with_texture_canvas(&mut texture, |tex_canvas| {
+                            draw_engine::draw_waterfall(
+                                keyboard,
+                                tex_canvas,
+                                i,
+                                i * waterfall_net_height,
+                                waterfall_net_height,
+                                waterfall_overlap,
+                                rows_per_s,
+                                &control.show_events().unwrap(),
+                            );
+                        })?;
+                    }
                     textures.push(texture);
                 }
             }
@@ -255,22 +258,25 @@ fn main() -> Result<(), Box<std::error::Error>> {
             let rem_us = st.us_till_next_frame();
             let pos_us = control.get_pos_us_after(rem_us);
 
-            let mut draw_commands_1 = draw_engine::get_pressed_key_rectangles(
-                &keyboard,
-                rec.height() - keyboard.height as u32 - 1,
-                pos_us,
-                &control.show_events().unwrap(),
-            );
-            let mut draw_commands_2 = draw_engine::copy_waterfall_to_screen(
-                textures.len() - 2,
-                rec.width(),
-                rec.height() - keyboard.height as u32,
-                waterfall_net_height,
-                waterfall_overlap,
-                rows_per_s,
-                pos_us,
-            );
-            draw_commands_1.append(&mut draw_commands_2);
+            let mut draw_commands_1 = vec![];
+            if let Some(keyboard) = control.get_keyboard() {
+                draw_commands_1 = draw_engine::get_pressed_key_rectangles(
+                    &keyboard,
+                    rec.height() - keyboard.height as u32 - 1,
+                    pos_us,
+                    &control.show_events().unwrap(),
+                );
+                let mut draw_commands_2 = draw_engine::copy_waterfall_to_screen(
+                    textures.len() - 2,
+                    rec.width(),
+                    rec.height() - keyboard.height as u32,
+                    waterfall_net_height,
+                    waterfall_overlap,
+                    rows_per_s,
+                    pos_us,
+                );
+                draw_commands_1.append(&mut draw_commands_2);
+            }
             draw_commands_1
         } else {
             vec![]
@@ -290,22 +296,6 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         }
         st.sample("waterfall and pressed keys drawn");
-
-        trace!(target: EV, "before Eventloop");
-        loop {
-            let rem_us = st.us_till_next_frame();
-            if rem_us > 5000 {
-                if let Some(event) = event_pump.poll_event() {
-                    trace!("event received: {:?}", event);
-                    if !sdl_event_processor::process_event(event, &mut control) {
-                        break 'running; // Exit loop
-                    }
-                    continue; // next event
-                }
-            }
-            break;
-        }
-        st.sample("event loop");
 
         control.update_position_if_scrolling();
     }

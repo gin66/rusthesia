@@ -19,11 +19,13 @@ const WK: &str = &"worker";
 
 enum WorkerResult {
     EventsLoaded(Result<(Vec<RawMidiTuple>, Vec<RawMidiTuple>), std::io::Error>),
+    KeyboardBuilt(Result<piano_keyboard::Keyboard2d, std::io::Error>),
 }
 
+#[derive(Debug)]
 enum AppState {
-    NeedEventLoading,
-    WaitForEventLoading,
+    Check,
+    Wait,
     Running,
 }
 
@@ -109,7 +111,10 @@ pub struct AppControl {
     left_key: u8,
     right_key: u8,
     shift_key: i8,
+    width: Option<u16>,
     need_redraw_textures: bool,
+    request_events: bool,
+    request_keyboard: bool,
     show_tracks: Vec<usize>,
     play_tracks: Vec<usize>,
     show_events: Option<Vec<RawMidiTuple>>,
@@ -118,38 +123,11 @@ pub struct AppControl {
     time_keeper: Option<TimeListener>,
     rx: mpsc::Receiver<WorkerResult>,
     tx: mpsc::Sender<WorkerResult>,
-    worker: Option<thread::JoinHandle<()>>,
+    event_worker: Option<thread::JoinHandle<()>>,
+    keyboard_worker: Option<thread::JoinHandle<()>>,
+    keyboard: Option<piano_keyboard::Keyboard2d>,
 }
 impl AppControl {
-    #[allow(dead_code)]
-    pub fn new() -> AppControl {
-        let scroller = Scroller::new(5_000_000.0);
-        let (tx, rx) = mpsc::channel();
-        AppControl {
-            state: None,
-            midi_fname: "".to_string(),
-            command_list_tracks: false,
-            quiet: false,
-            debug: None,
-            verbose: 0,
-            paused: false,
-            scale_1000: 1000,
-            pos_us: 0,
-            left_key: 21,
-            right_key: 108,
-            shift_key: 0,
-            need_redraw_textures: false,
-            show_tracks: vec![],
-            play_tracks: vec![],
-            show_events: None,
-            sequencer: None,
-            scroller,
-            time_keeper: None,
-            rx,
-            tx,
-            worker: None,
-        }
-    }
     pub fn from_clap(matches: ArgMatches) -> AppControl {
         let (tx, rx) = mpsc::channel();
         let quiet = matches.is_present("quiet");
@@ -174,7 +152,7 @@ impl AppControl {
         let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());
         let scroller = Scroller::new(5_000_000.0);
         AppControl {
-            state: None,
+            state: Some(AppState::Check),
             midi_fname,
             command_list_tracks: list_tracks,
             quiet,
@@ -183,9 +161,12 @@ impl AppControl {
             paused: false,
             scale_1000: 1000,
             pos_us: 0,
+            width: None,
             left_key,
             right_key,
             shift_key,
+            request_events: true,
+            request_keyboard: false,
             need_redraw_textures: false,
             show_tracks,
             play_tracks,
@@ -195,7 +176,9 @@ impl AppControl {
             time_keeper: None,
             rx,
             tx,
-            worker: None,
+            event_worker: None,
+            keyboard_worker: None,
+            keyboard: None,
         }
     }
     pub fn toggle_play(&mut self) {
@@ -241,11 +224,7 @@ impl AppControl {
         } else {
             self.shift_key.max(-126) - 1
         };
-        if let Some(seq) = self.sequencer.take() {
-            seq.stop();
-            self.state = Some(AppState::NeedEventLoading);
-            self.sequencer = Some(seq);
-        }
+        self.request_events = true;
     }
     pub fn two_finger_scroll_start(&mut self, y: f32) {
         if !self.scroller.update_move(y) {
@@ -342,6 +321,20 @@ impl AppControl {
         let rem_dur = Duration::new(0, dt_us * 1_000);
         self.time_keeper.as_ref().unwrap().get_pos_us_after(rem_dur)
     }
+    pub fn get_keyboard(&self) -> Option<&piano_keyboard::Keyboard2d> {
+        self.keyboard.as_ref()
+    }
+    fn build_keyboard(
+        width: u16,
+        left_key: u8,
+        right_key: u8,
+    ) -> Result<piano_keyboard::Keyboard2d, std::string::String> {
+        Ok(piano_keyboard::KeyboardBuilder::new()
+                    .set_width(width)?
+                    .white_black_gap_present(true)
+                    .set_most_left_right_white_keys(left_key, right_key)?
+                    .build2d())
+    }
     pub fn read_midi_file(
         midi_fname: &str,
         left_key: u8,
@@ -391,61 +384,137 @@ impl AppControl {
             .collect::<Vec<_>>();
         Ok((show_events, play_events))
     }
-    pub fn next_loop(&mut self) {
-        self.pos_us = self.time_keeper.as_ref().unwrap().get_pos_us();
-        let th_result = self.rx.try_recv();
-        if th_result.is_ok() {
-            trace!(target: WK, "Join worker");
-            self.worker
-                .take()
-                .unwrap()
-                .join()
-                .expect("something went wrong with worker thread");
-            trace!(target: WK, "Join worker done");
+    fn load_keyboard(&mut self) {
+        trace!(target: WK, "Start thread for building keyboard");
+        if self.keyboard_worker.is_none() {
+            let tx = self.tx.clone();
+            let left_key = self.left_key;
+            let right_key = self.right_key;
+            if let Some(width) = self.width {
+                let jh = thread::spawn(move || {
+                    let res = AppControl::build_keyboard(width, left_key, right_key);
+                    let res = res.map_err(|err_str| {
+                        std::io::Error::new(std::io::ErrorKind::Other, err_str)
+                    });
+                    trace!(target: WK, "Send keyboard to main");
+                    tx.send(WorkerResult::KeyboardBuilt(res)).unwrap();
+                });
+                self.keyboard_worker = Some(jh);
+            }
         }
-        let s = match (self.state.take(), th_result) {
-            (Some(_), Ok(WorkerResult::EventsLoaded(Ok((show_events, play_events))))) => {
+    }
+    fn load_event(&mut self) {
+        trace!(target: WK, "Start thread for reading the midi file");
+        if self.event_worker.is_none() {
+            let tx = self.tx.clone();
+            let midi_fname = self.midi_fname.clone();
+            let left_key = self.left_key;
+            let right_key = self.right_key;
+            let shift_key = self.shift_key;
+            let show_tracks = self.show_tracks.clone();
+            let play_tracks = self.play_tracks.clone();
+            let jh = thread::spawn(move || {
+                let res = AppControl::read_midi_file(
+                    &midi_fname,
+                    left_key,
+                    right_key,
+                    shift_key,
+                    show_tracks,
+                    play_tracks,
+                );
+                trace!(target: WK, "Send events to main");
+                tx.send(WorkerResult::EventsLoaded(res)).unwrap();
+            });
+            self.event_worker = Some(jh);
+        }
+    }
+    pub fn next_loop(&mut self) {
+        if let Some(time_keeper) = self.time_keeper.as_ref() {
+            self.pos_us = time_keeper.get_pos_us();
+        }
+        let th_result = self.rx.try_recv();
+        match th_result {
+            Ok(WorkerResult::EventsLoaded(Ok((show_events, play_events)))) => {
                 trace!(target: WK, "Events loaded");
+                self.event_worker
+                    .take()
+                    .unwrap()
+                    .join()
+                    .expect("something went wrong with worker thread");
+                trace!(target: WK, "Join worker done");
                 self.show_events = Some(show_events);
                 if let Some(seq) = self.sequencer.take() {
                     seq.set_midi_data(play_events);
                     seq.play(self.pos_us);
                     self.sequencer = Some(seq);
-                    self.need_redraw_textures = true;
+                }
+                self.need_redraw_textures = true;
+                self.request_events = self.show_events.is_none();
+            }
+            Ok(WorkerResult::KeyboardBuilt(Ok(keyboard))) => {
+                trace!(target: WK, "Keyboard built");
+                self.keyboard_worker
+                    .take()
+                    .unwrap()
+                    .join()
+                    .expect("something went wrong with worker thread");
+                trace!(target: WK, "Join worker done");
+                self.keyboard = Some(keyboard);
+                self.request_keyboard = self.keyboard.is_none();
+                self.need_redraw_textures = true;
+            }
+            Ok(WorkerResult::EventsLoaded(Err(_))) => (),
+            Ok(WorkerResult::KeyboardBuilt(Err(_))) => (),
+            Err(_) => ()
+        };
+        debug!("AppState: {:?}",self.state);
+        let s = match self.state.take() {
+            Some(AppState::Check) => {
+                if self.request_events {
+                    self.load_event();
+                }
+                if self.request_keyboard {
+                    self.load_keyboard();
+                }
+                AppState::Wait
+            }
+            Some(AppState::Wait) => {
+                if self.event_worker.is_none() 
+                    && self.keyboard_worker.is_none() {
+                    if let Some(seq) = self.sequencer.take() {
+                        seq.stop();
+                        if !self.paused {
+                            seq.play(self.pos_us);
+                        }
+                        self.sequencer = Some(seq);
+                    }
+
+                    AppState::Running
+                }
+                else {
+                    AppState::Wait
+                }
+            }
+            Some(AppState::Running) => {
+                if self.request_events {
+                    self.load_event();
+                }
+                if self.request_keyboard {
+                    self.load_keyboard();
                 }
                 AppState::Running
             }
-            (Some(AppState::NeedEventLoading), _) => {
-                trace!(target: WK, "Start thread for reading the midi file");
-                let tx = self.tx.clone();
-                let midi_fname = self.midi_fname.clone();
-                let left_key = self.left_key;
-                let right_key = self.right_key;
-                let shift_key = self.shift_key;
-                let show_tracks = self.show_tracks.clone();
-                let play_tracks = self.play_tracks.clone();
-                let jh = thread::spawn(move || {
-                    let res = AppControl::read_midi_file(
-                        &midi_fname,
-                        left_key,
-                        right_key,
-                        shift_key,
-                        show_tracks,
-                        play_tracks,
-                    );
-                    trace!(target: WK, "Send events to main");
-                    tx.send(WorkerResult::EventsLoaded(res)).unwrap();
-                });
-                self.worker = Some(jh);
-                AppState::WaitForEventLoading
-            }
-            (None, _) => AppState::NeedEventLoading,
-            (_, _) => AppState::Running,
+            None => panic!("should not happen"),
         };
         self.state = Some(s);
     }
-    pub fn need_redraw(&mut self) -> bool {
-        let need = self.need_redraw_textures;
+    pub fn need_redraw(&mut self, width: u16) -> bool {
+        let mut need = self.need_redraw_textures;
+        if self.width != Some(width) {
+            self.width = Some(width);
+            self.request_keyboard = true;
+            need = true;
+        }
         self.need_redraw_textures = false;
         need
     }
