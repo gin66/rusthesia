@@ -48,7 +48,7 @@ matrix:
       #- env: TARGET=powerpc64-unknown-linux-gnu
       #- env: TARGET=powerpc64le-unknown-linux-gnu
       #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
-      #- env: TARGET=x86_64-unknown-linux-gnu
+      - env: TARGET=x86_64-unknown-linux-gnu
       #- env: TARGET=x86_64-unknown-linux-musl
 
     # OSX
@@ -82,9 +82,20 @@ matrix:
 
 addons:
   apt:
-    packages: librtaudio-dev libsdl2-2.0 cmake libfreetype6-dev libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev libfontconfig1-dev
+    packages:
+      - librtaudio-dev
+      - libsdl2-2.0
+      - cmake
+      - libfreetype6-dev
+      - libsdl2-dev
+      - libsdl2-gfx-dev
+      - libsdl2-ttf-dev
+      - libfontconfig1-dev
   homebrew:
-    packages: sdl2 sdl2_gfx sdl2_ttf
+    packages:
+      - sdl2
+      - sdl2_gfx
+      - sdl2_ttf
 
 before_install:
   - set -e
