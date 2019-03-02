@@ -188,7 +188,7 @@ impl<'a> Sdl2Timing<'a> {
                 }
             }
             else {
-                self.opt_base_time = Some(Instant::now());
+                self.opt_base_time = None;
             }
             self.sample("Sdl2Timing: before present and clear");
             canvas.present();
