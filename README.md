@@ -1,5 +1,7 @@
 # Rusthesia
 
+![travis build](https://travis-ci.org/gin66/rusthesia.svg?branch=master)
+
 Rusthesia is till now just a hack to play a midi file, created from Logic Pro/X, and display a window with falling notes down onto a piano.
 
 
