@@ -1,5 +1,7 @@
 // https://stackoverflow.com/questions/4262221/duration-for-kinetic-scrolling-momentum-based-on-velocity
 //
+use std::time::Instant;
+
 use log::*;
 
 const SCROLL_TIME_MS: u32 = 1_950;
@@ -7,8 +9,8 @@ const TIME_CONSTANT_MS: f32 = 10.0;
 
 enum ScrollerState {
     Inactive,
-    Scrolling,
-    FreeRunning,
+    Scrolling(Instant),
+    FreeRunning(Instant),
 }
 
 pub struct Scroller {
@@ -35,30 +37,34 @@ impl Scroller {
     }
     pub fn stop(&mut self) -> bool {
         let scrolling = match self.state {
-            ScrollerState::FreeRunning => true,
+            ScrollerState::FreeRunning(_) => true,
             _ => false,
         };
         self.state = ScrollerState::Inactive;
         scrolling
     }
-    pub fn update_move(&mut self, y: f32, dt_ms: u32) -> bool {
+    fn get_ms(&mut self) -> u32 {
+        0
+    }
+    pub fn update_move(&mut self, y: f32) -> bool {
         let (state, moving) = match self.state {
-            ScrollerState::FreeRunning | ScrollerState::Inactive => {
+            ScrollerState::FreeRunning(_) | ScrollerState::Inactive => {
                 trace!("Update move");
                 self.start_y = y;
                 self.last_y = y;
                 self.time_ms = 0;
                 self.last_position = y * self.scale_factor;
                 self.amplitude = 0.0;
-                (ScrollerState::Scrolling, false)
+                (ScrollerState::Scrolling(Instant::now()), false)
             }
-            ScrollerState::Scrolling => {
+            ScrollerState::Scrolling(stamp) => {
+                let dt_ms = stamp.elapsed().subsec_millis();
                 trace!("xUpdate move");
                 self.last_y = y;
                 self.time_ms += dt_ms;
                 let initial_velocity = (y - self.start_y) * 1000.0 / dt_ms as f32;
                 self.amplitude = initial_velocity * self.scale_factor;
-                (ScrollerState::Scrolling, true)
+                (ScrollerState::Scrolling(Instant::now()), true)
             }
         };
         self.state = state;
@@ -67,30 +73,31 @@ impl Scroller {
     pub fn end_move(&mut self) {
         self.state = match self.state {
             ScrollerState::Inactive => ScrollerState::Inactive,
-            ScrollerState::FreeRunning | ScrollerState::Scrolling => {
+            ScrollerState::FreeRunning(_) | ScrollerState::Scrolling(_) => {
                 self.time_ms = 0;
-                ScrollerState::FreeRunning
+                ScrollerState::FreeRunning(Instant::now())
             }
         }
     }
-    pub fn update_position(&mut self, dt_ms: u32) -> Option<(bool, f32)> {
+    pub fn update_position(&mut self) -> Option<(bool, f32)> {
         let (state, result) = match self.state {
             ScrollerState::Inactive => (ScrollerState::Inactive, None),
-            ScrollerState::Scrolling => {
+            ScrollerState::Scrolling(stamp) => {
                 let new_position = self.last_y * self.scale_factor;
                 let delta = new_position - self.last_position;
                 self.last_position = new_position;
                 trace!("Scroll delta = {}", delta);
-                (ScrollerState::Scrolling, Some((false, delta)))
+                (ScrollerState::Scrolling(stamp), Some((false, delta)))
             }
-            ScrollerState::FreeRunning => {
+            ScrollerState::FreeRunning(stamp) => {
+                let dt_ms = stamp.elapsed().subsec_millis();
                 self.time_ms += dt_ms;
                 let delta = self.amplitude / TIME_CONSTANT_MS;
                 trace!("Freerunning delta = {}", delta);
                 self.amplitude -= delta;
                 if self.time_ms < SCROLL_TIME_MS {
                     trace!("time = {}  Scroll delta = {}", self.time_ms, delta);
-                    (ScrollerState::FreeRunning, Some((false, delta)))
+                    (ScrollerState::FreeRunning(Instant::now()), Some((false, delta)))
                 } else {
                     (ScrollerState::Inactive, Some((true, delta)))
                 }

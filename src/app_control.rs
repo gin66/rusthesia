@@ -105,7 +105,6 @@ pub struct AppControl {
     verbose: usize,
     paused: bool,
     scale_1000: u16,
-    ms_per_frame: u32,
     pos_us: i64,
     left_key: u8,
     right_key: u8,
@@ -135,7 +134,6 @@ impl AppControl {
             verbose: 0,
             paused: false,
             scale_1000: 1000,
-            ms_per_frame: 40,
             pos_us: 0,
             left_key: 21,
             right_key: 108,
@@ -175,7 +173,6 @@ impl AppControl {
         let show_tracks = values_t!(matches.values_of("show"), usize).unwrap_or_else(|_| vec![]);
         let play_tracks = values_t!(matches.values_of("play"), usize).unwrap_or_else(|e| e.exit());
         let scroller = Scroller::new(5_000_000.0);
-        let ms_per_frame = value_t!(matches, "ms_per_frame", u32).unwrap_or_else(|e| e.exit());
         AppControl {
             state: None,
             midi_fname,
@@ -185,7 +182,6 @@ impl AppControl {
             verbose,
             paused: false,
             scale_1000: 1000,
-            ms_per_frame,
             pos_us: 0,
             left_key,
             right_key,
@@ -253,7 +249,7 @@ impl AppControl {
         self.need_redraw_textures = true;
     }
     pub fn two_finger_scroll_start(&mut self, y: f32) {
-        if !self.scroller.update_move(y, self.ms_per_frame) {
+        if !self.scroller.update_move(y) {
             if let Some(seq) = self.sequencer.take() {
                 seq.stop();
                 self.sequencer = Some(seq);
@@ -272,7 +268,7 @@ impl AppControl {
         self.scroller.end_move();
     }
     pub fn update_position_if_scrolling(&mut self) {
-        if let Some((is_end, delta)) = self.scroller.update_position(self.ms_per_frame) {
+        if let Some((is_end, delta)) = self.scroller.update_position() {
             if let Some(seq) = self.sequencer.take() {
                 if is_end && !self.paused {
                     seq.play(self.pos_us + delta as i64);
@@ -307,9 +303,6 @@ impl AppControl {
     }
     pub fn list_command(&self) -> bool {
         self.command_list_tracks
-    }
-    pub fn ms_per_frame(&self) -> u32 {
-        self.ms_per_frame
     }
     pub fn show_tracks(&self) -> &Vec<usize> {
         &self.show_tracks

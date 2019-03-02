@@ -250,8 +250,7 @@ impl<'a> Sdl2Timing<'a> {
             assert!(us_per_frame > 0);
             if elapsed_us > us_per_frame {
                 self.lost_frames_cnt += 1;
-                println!("SYNC MISSED: {}, this time by {} us",self.lost_frames_cnt, elapsed_us - us_per_frame);
-                warn!("SYNC MISSED: {}",self.lost_frames_cnt);
+                warn!("SYNC MISSED: {}, this time by {} us",self.lost_frames_cnt, elapsed_us - us_per_frame);
                 0
             }
             else {
