@@ -83,6 +83,10 @@ fn main() -> Result<(), Box<std::error::Error>> {
             tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(0,0,0));
             tex_canvas.clear();
             for i in 0..x_vals.len() {
+                let y = 10+i as i32*12;
+                if y as u32 + 10 > height {
+                    break;
+                }
                 let x = x_vals[i];
                 if !paused  || onestep {
                     x_vals[i] += i as i32 + 1;
@@ -101,7 +105,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(c,c,c));
                     let r = sdl2::rect::Rect::new(
                         pos_x,
-                        10+i as i32*12,
+                        y,
                         bw,
                         10,
                     );
@@ -112,7 +116,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                     tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(c,c,c));
                     let r = sdl2::rect::Rect::new(
                         pos_x+1,
-                        10+i as i32*12,
+                        y,
                         bw,
                         10,
                     );
@@ -121,7 +125,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(255,255,255));
                 let r = sdl2::rect::Rect::new(
                     pos_x+1,
-                    10+i as i32*12,
+                    y,
                     bw-1,
                     10,
                 );
