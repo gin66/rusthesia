@@ -182,6 +182,13 @@ impl<'a> Sdl2Timing<'a> {
                 let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
                 std::thread::sleep(sleep_duration);
                 self.sample("Sdl2Timing: sleep");
+                if let Some(base_time) = self.opt_base_time {
+                    let us_per_frame = self.get_us_per_frame();
+                    self.opt_base_time = Some(base_time + Duration::new(0, us_per_frame * 1_000));
+                }
+            }
+            else {
+                self.opt_base_time = Some(Instant::now());
             }
             self.sample("Sdl2Timing: before present and clear");
             canvas.present();
@@ -208,12 +215,6 @@ impl<'a> Sdl2Timing<'a> {
         // TODO: Optional
         canvas.set_draw_color(color);
         canvas.clear();
-        if let Some(base_time) = self.opt_base_time.take() {
-            if !self.has_vsync {
-                let us_per_frame = self.get_us_per_frame();
-                self.opt_base_time = Some(base_time + Duration::new(0, us_per_frame * 1_000));
-            }
-        }
         if self.opt_base_time.is_none() {
             self.opt_base_time = Some(Instant::now());
         }
@@ -249,7 +250,8 @@ impl<'a> Sdl2Timing<'a> {
             assert!(us_per_frame > 0);
             if elapsed_us > us_per_frame {
                 self.lost_frames_cnt += 1;
-                warn!("FRAME(S) LOST: {}",self.lost_frames_cnt);
+                println!("SYNC MISSED: {}, this time by {} us",self.lost_frames_cnt, elapsed_us - us_per_frame);
+                warn!("SYNC MISSED: {}",self.lost_frames_cnt);
                 0
             }
             else {

@@ -175,8 +175,8 @@ fn main() -> Result<(), Box<std::error::Error>> {
             }
         };
         let dt_us = st.sample("event loop").0;
-        if dt_us > 500 {
-            println!("event loop {} > 500 us",dt_us);
+        if dt_us > 1500 {
+            println!("event loop {} > 1500 us",dt_us);
         }
     }
     sleep(Duration::from_millis(150));
