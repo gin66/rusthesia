@@ -27,7 +27,7 @@ Screen output uses sdl2.
 The sdl2 libraries need to be installed. On macos this can be done by:
 
 ```
-brew install sdl2 sdl2_gfx
+brew install sdl2 sdl2_gfx sdl2_ttf
 ```
 
 ## Installation

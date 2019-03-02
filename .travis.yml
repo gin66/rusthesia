@@ -18,7 +18,7 @@ matrix:
     # Android
     #- env: TARGET=aarch64-linux-android DISABLE_TESTS=1
     #- env: TARGET=arm-linux-androideabi DISABLE_TESTS=1
-    - env: TARGET=armv7-linux-androideabi DISABLE_TESTS=1
+    #- env: TARGET=armv7-linux-androideabi DISABLE_TESTS=1
     #- env: TARGET=i686-linux-android DISABLE_TESTS=1
     #- env: TARGET=x86_64-linux-android DISABLE_TESTS=1
 
@@ -48,8 +48,8 @@ matrix:
       #- env: TARGET=powerpc64-unknown-linux-gnu
       #- env: TARGET=powerpc64le-unknown-linux-gnu
       #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
-    - env: TARGET=x86_64-unknown-linux-gnu
-    - env: TARGET=x86_64-unknown-linux-musl
+      #- env: TARGET=x86_64-unknown-linux-gnu
+      #- env: TARGET=x86_64-unknown-linux-musl
 
     # OSX
     #- env: TARGET=i686-apple-darwin
@@ -59,11 +59,11 @@ matrix:
 
     # *BSD
     #- env: TARGET=i686-unknown-freebsd DISABLE_TESTS=1
-    - env: TARGET=x86_64-unknown-freebsd DISABLE_TESTS=1
-    - env: TARGET=x86_64-unknown-netbsd DISABLE_TESTS=1
+    #- env: TARGET=x86_64-unknown-freebsd DISABLE_TESTS=1
+    #- env: TARGET=x86_64-unknown-netbsd DISABLE_TESTS=1
 
     # Windows
-    - env: TARGET=x86_64-pc-windows-gnu
+    #- env: TARGET=x86_64-pc-windows-gnu
 
     # Bare metal
     # These targets don't support std and as such are likely not suitable for
@@ -74,11 +74,17 @@ matrix:
     # - env: TARGET=thumbv7m-none-eabi
 
     # Testing other channels
-    - env: TARGET=x86_64-unknown-linux-gnu
-      rust: nightly
+    #- env: TARGET=x86_64-unknown-linux-gnu
+    #  rust: nightly
     - env: TARGET=x86_64-apple-darwin
       os: osx
       rust: nightly
+
+addons:
+  apt:
+    packages: librtaudio-dev libsdl2-2.0 cmake libfreetype6-dev libsdl2-dev libsdl2-gfx-dev libsdl2-ttf-dev libfontconfig1-dev
+  homebrew:
+    packages: sdl2 sdl2_gfx sdl2_ttf
 
 before_install:
   - set -e
