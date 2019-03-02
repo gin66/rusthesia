@@ -55,13 +55,14 @@ pub struct Sdl2Timing<'a> {
     last_us: u64,
     stamp: Option<Instant>,
     sdl2_us_per_frame: u32,
+    clear_present_avg_us: u32,
     opt_us_per_frame: Option<u32>,
-    base_time: Option<Instant>,
+    opt_base_time: Option<Instant>,
     measured: bool,
     initialized: bool,
     has_vsync: bool,
     lost_frames_cnt: usize,
-    measures: HashMap<&'a str,(u64,u64,u64,usize)>,
+    measures: HashMap<&'a str,(u64,u64,u64,u64)>, // min,sum,max,cnt
     display_mode: sdl2::video::DisplayMode,
     display_name: String,
 }
@@ -88,14 +89,16 @@ impl<'a> Sdl2Timing<'a> {
         let display_mode = vs.current_display_mode(display_index)?;
         let display_name = vs.display_name(display_index)?;
         let sdl2_us_per_frame = 1_000_000 / display_mode.refresh_rate as u32;
-        println!("{}",display_mode.refresh_rate);
+
+        let sdl2_us_per_frame = 1_000_000 / 30;
         assert!(sdl2_us_per_frame > 0);
         Ok(Sdl2Timing {
             last_us: 0,
             stamp: None,
             sdl2_us_per_frame,
             opt_us_per_frame: None,
-            base_time: None,
+            clear_present_avg_us: 0,
+            opt_base_time: None,
             measured: false,
             initialized: false,
             has_vsync: false,
@@ -133,7 +136,12 @@ impl<'a> Sdl2Timing<'a> {
             }
             opt_last_round_us = Some(elapsed_us);
             sleep(Duration::from_micros(200));
+            self.sample("Sdl2Timing: sleep in measurement");
+            canvas.clear();
+            let mut avg_us = self.sample("Sdl2Timing: canvas clear").1;
             canvas.present();
+            avg_us += self.sample("Sdl2Timing: canvas present").1;
+            self.clear_present_avg_us = avg_us;
         }
         debug!("Measured round times in us: {:?}",round_us_vec);
         if round_us_vec.len() > 2 {
@@ -162,7 +170,6 @@ impl<'a> Sdl2Timing<'a> {
                 debug!("...not enough significant loop times");
             }
         }
-        self.sample("measurement");
     }
     /// It should be called at beginning of the main loop with the display
     /// canvas as argument and the color, which should be used to clear the canvas.
@@ -170,16 +177,17 @@ impl<'a> Sdl2Timing<'a> {
     pub fn canvas_present_then_clear(&mut self, 
                                      canvas: &mut Canvas<Window>,
                                      color: sdl2::pixels::Color) {
+        let mut avg_us = 0;
         if self.initialized {
             if !self.has_vsync {
                 let rem_us = self.us_till_next_frame();
                 let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
                 std::thread::sleep(sleep_duration);
-                self.sample("sleep");
+                self.sample("Sdl2Timing: sleep");
             }
             self.sample("Sdl2Timing: before present and clear");
             canvas.present();
-            self.sample("Sdl2Timing: after present, before clear");
+            avg_us += self.sample("Sdl2Timing: canvas present").1;
         }
         else {
             self.last_us = 0;
@@ -199,12 +207,22 @@ impl<'a> Sdl2Timing<'a> {
                 self.measured = true;
             }
         }
+        // TODO: Optional
         canvas.set_draw_color(color);
         canvas.clear();
-        self.base_time = Some(Instant::now());
-        self.sample("Sdl2Timing: after clear");
+        if let Some(base_time) = self.opt_base_time.take() {
+            if self.has_vsync {
+                let us_per_frame = self.get_us_per_frame();
+                self.opt_base_time = Some(base_time + Duration::new(0, us_per_frame * 1_000));
+            }
+        }
+        if self.opt_base_time.is_none() {
+            self.opt_base_time = Some(Instant::now());
+        }
+        avg_us += self.sample("Sdl2Timing: canvas clear").1;
+        self.clear_present_avg_us = avg_us;
     }
-    pub fn sample(&mut self, name: &'a str) {
+    pub fn sample(&mut self, name: &'a str) -> (u32,u32) { // actual, average
         if !self.measures.contains_key(&name) {
             self.measures.insert(&name, (u64::max_value(),0,0,0));
         }
@@ -219,12 +237,13 @@ impl<'a> Sdl2Timing<'a> {
         m.1 += dt_us;
         m.2 = m.2.max(dt_us);
         m.3 += 1;
+        (dt_us as u32, (m.1/m.3) as u32)
     }
     pub fn clear(&mut self) {
         self.measures.clear();
     }
     pub fn us_till_next_frame(&mut self) -> u32 {
-        if let Some(base_time) = self.base_time.as_ref() {
+        if let Some(base_time) = self.opt_base_time.as_ref() {
             let elapsed = base_time.elapsed();
             let elapsed_us = elapsed.subsec_micros() as u64 
                                 + elapsed.as_secs() * 1_000_000;
@@ -241,9 +260,14 @@ impl<'a> Sdl2Timing<'a> {
             }
         } else {
             error!("This path should not be taken");
-            self.base_time = Some(Instant::now());
+            self.opt_base_time = Some(Instant::now());
             0
         }
+    }
+    pub fn us_processing_left(&mut self) -> u32 {
+        let us_for_clear_present = self.clear_present_avg_us * 3 / 2;
+        self.us_till_next_frame()
+            .max(us_for_clear_present) - us_for_clear_present
     }
     pub fn output(&self) {
         if self.has_vsync {

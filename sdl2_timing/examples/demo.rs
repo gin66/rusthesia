@@ -46,17 +46,19 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let mut canvas = sdl2::render::CanvasBuilder::new(window)
         .accelerated()
         .present_vsync()
+        .target_texture()
         .build()?;
     let texture_creator = canvas.texture_creator();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     //event_pump.disable_event(sdl2::event::EventType::Window);
 
-    let mut x_vals = vec![10;30];
+    let mut x_vals = vec![10;60];
+    let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
+    let mut paused = false;
 
     'running: loop {
         trace!("at loop start");
-        let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
         st.canvas_present_then_clear(&mut canvas, bg_color);
 
         let rec = canvas.viewport();
@@ -70,17 +72,25 @@ fn main() -> Result<(), Box<std::error::Error>> {
                 height,
             )
             .unwrap();
+        st.sample("Create texture");
         canvas.with_texture_canvas(&mut texture, |tex_canvas| {
             tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(0,0,0));
             tex_canvas.clear();
             tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(255,255,255));
             for i in 0..x_vals.len() {
                 let x = x_vals[i];
-                x_vals[i] += i as i32 + 1;
+                if !paused {
+                    x_vals[i] += i as i32 + 1;
+                }
+                let bw = 20;
+                let mut pos_x = x / 4 % (2*(width-bw)) as i32;
+                if pos_x > (width-bw) as i32 {
+                    pos_x = 2*(width-bw) as i32-pos_x;
+                }
                 let r = sdl2::rect::Rect::new(
-                    x / 3 % (width-10) as i32,
-                    10+i as i32*20,
-                    10,
+                    pos_x,
+                    10+i as i32*12,
+                    bw,
                     10,
                 );
                 tex_canvas.fill_rect(r).unwrap(); // TODO
@@ -90,31 +100,39 @@ fn main() -> Result<(), Box<std::error::Error>> {
         st.sample("Draw content to canvas");
 
         loop {
-            let rem_us = st.us_till_next_frame();
-            if rem_us > 5000 {
-                if let Some(event) = event_pump.poll_event() {
-                    println!("event received: {:?}", event);
-                    match event {
-                        Event::Window { win_event, .. } => {
-                            trace!("Unprocessed window Event: {:?}", win_event);
-                        }
-                        Event::Quit { .. }
-                        | Event::KeyDown {
-                            keycode: Some(Keycode::Escape),
-                            ..
-                        } => break 'running,
-                        | Event::KeyDown {
-                            keycode: Some(Keycode::Space),
-                            ..
-                        } => st.clear(),
-                        _ => {}
+            if st.us_processing_left() < 2_000 {
+                break;
+            }
+            if let Some(event) = event_pump.poll_event() {
+                println!("event received: {:?}", event);
+                match event {
+                    Event::Window { win_event, .. } => {
+                        trace!("Unprocessed window Event: {:?}", win_event);
                     }
-                    continue; // next event
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => break 'running,
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Delete),
+                        ..
+                    } => st.clear(),
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Space),
+                        ..
+                    } => paused ^= true,
+                    _ => {}
                 }
             }
-            break;
+            else {
+                break;
+            }
         };
-        st.sample("event loop");
+        let dt_us = st.sample("event loop").0;
+        if dt_us > 500 {
+            println!("event loop {} > 500 us",dt_us);
+        }
     }
     sleep(Duration::from_millis(150));
 
