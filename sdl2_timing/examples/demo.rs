@@ -50,12 +50,18 @@ fn main() -> Result<(), Box<std::error::Error>> {
         .build()?;
     let texture_creator = canvas.texture_creator();
 
+    println!("Output size = {:?}",canvas.output_size());
+    println!("Logical size = {:?}",canvas.logical_size());
+    println!("Viewport = {:?}",canvas.viewport());
+    println!("Scale = {:?}",canvas.scale());
+
     let mut event_pump = sdl_context.event_pump().unwrap();
     //event_pump.disable_event(sdl2::event::EventType::Window);
 
     let mut x_vals = vec![10;60];
     let bg_color = sdl2::pixels::Color::RGB(50, 50, 50);
     let mut paused = false;
+    let mut onestep = false;
 
     'running: loop {
         trace!("at loop start");
@@ -76,25 +82,52 @@ fn main() -> Result<(), Box<std::error::Error>> {
         canvas.with_texture_canvas(&mut texture, |tex_canvas| {
             tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(0,0,0));
             tex_canvas.clear();
-            tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(255,255,255));
             for i in 0..x_vals.len() {
                 let x = x_vals[i];
-                if !paused {
+                if !paused  || onestep {
                     x_vals[i] += i as i32 + 1;
                 }
                 let bw = 20;
-                let mut pos_x = x / 4 % (2*(width-bw)) as i32;
-                if pos_x > (width-bw) as i32 {
-                    pos_x = 2*(width-bw) as i32-pos_x;
+                let subsample: u32 = 8;
+                let mut pos_sub_x: u32 = x as u32 % (2*subsample*(width-bw));
+                if pos_sub_x > subsample*(width-bw) as u32 {
+                    pos_sub_x = 2*subsample*(width-bw) as u32-pos_sub_x;
                 }
+                let pos_x = (pos_sub_x/subsample) as i32;
+                let sub_x = pos_sub_x%subsample;
+                // Antialiasing
+                let c = (255*(subsample-sub_x)/subsample) as u8;
+                if c > 0 {
+                    tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(c,c,c));
+                    let r = sdl2::rect::Rect::new(
+                        pos_x,
+                        10+i as i32*12,
+                        bw,
+                        10,
+                    );
+                    tex_canvas.fill_rect(r).unwrap(); // TODO
+                }
+                let c = 255-c;
+                if c > 0 {
+                    tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(c,c,c));
+                    let r = sdl2::rect::Rect::new(
+                        pos_x+1,
+                        10+i as i32*12,
+                        bw,
+                        10,
+                    );
+                    tex_canvas.fill_rect(r).unwrap(); // TODO
+                }
+                tex_canvas.set_draw_color(sdl2::pixels::Color::RGB(255,255,255));
                 let r = sdl2::rect::Rect::new(
-                    pos_x,
+                    pos_x+1,
                     10+i as i32*12,
-                    bw,
+                    bw-1,
                     10,
                 );
                 tex_canvas.fill_rect(r).unwrap(); // TODO
             }
+            onestep = false;
         })?;
         canvas.copy(&texture, None, None)?;
         st.sample("Draw content to canvas");
@@ -122,7 +155,15 @@ fn main() -> Result<(), Box<std::error::Error>> {
                         keycode: Some(Keycode::Space),
                         ..
                     } => paused ^= true,
-                    _ => {}
+                    Event::TextInput {
+                        text: ref key,
+                        ..
+                    } if key == &"n".to_string() => onestep = true,
+                    Event::TextInput {
+                        text,
+                        ..
+                    } => println!("Text {:?}", text),
+                    raw => println!("{:?}",raw)
                 }
             }
             else {

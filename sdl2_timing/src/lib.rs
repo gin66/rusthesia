@@ -89,8 +89,6 @@ impl<'a> Sdl2Timing<'a> {
         let display_mode = vs.current_display_mode(display_index)?;
         let display_name = vs.display_name(display_index)?;
         let sdl2_us_per_frame = 1_000_000 / display_mode.refresh_rate as u32;
-
-        let sdl2_us_per_frame = 1_000_000 / 30;
         assert!(sdl2_us_per_frame > 0);
         Ok(Sdl2Timing {
             last_us: 0,
@@ -211,7 +209,7 @@ impl<'a> Sdl2Timing<'a> {
         canvas.set_draw_color(color);
         canvas.clear();
         if let Some(base_time) = self.opt_base_time.take() {
-            if self.has_vsync {
+            if !self.has_vsync {
                 let us_per_frame = self.get_us_per_frame();
                 self.opt_base_time = Some(base_time + Duration::new(0, us_per_frame * 1_000));
             }
