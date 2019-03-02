@@ -87,6 +87,7 @@ before_install:
 addons:
   apt:
     packages:
+      - libasound2-dev
       - librtaudio-dev
       - libsdl2-2.0
       - cmake
