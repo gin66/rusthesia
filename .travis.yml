@@ -143,6 +143,8 @@ branches:
     # release tags
     - /^v\d+\.\d+\.\d+.*$/
     - master
+    - nuc
+    - mba
 
 notifications:
   email:
