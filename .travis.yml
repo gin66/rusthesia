@@ -48,7 +48,7 @@ matrix:
     #- env: TARGET=powerpc64-unknown-linux-gnu
     #- env: TARGET=powerpc64le-unknown-linux-gnu
     #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
-    #- env: TARGET=x86_64-unknown-linux-gnu
+     env: TARGET=x86_64-unknown-linux-gnu
     #- env: TARGET=x86_64-unknown-linux-musl
 
     # OSX
@@ -89,6 +89,7 @@ addons:
     packages:
       - alsa-base
       - libasound2
+      - libasound2-data
       - libasound2-dev
       - librtaudio-dev
       - libsdl2-2.0
