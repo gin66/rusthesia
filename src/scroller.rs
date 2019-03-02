@@ -55,13 +55,12 @@ impl Scroller {
                 (ScrollerState::Scrolling(Instant::now()), false)
             }
             ScrollerState::Scrolling(stamp) => {
-                let dt_ms = stamp.elapsed().subsec_millis();
-                trace!("xUpdate move");
+                self.time_ms = stamp.elapsed().subsec_millis();
+                trace!("Update move");
                 self.last_y = y;
-                self.time_ms += dt_ms;
-                let initial_velocity = (y - self.start_y) * 1000.0 / dt_ms as f32;
+                let initial_velocity = (y - self.start_y) * 1000.0 / self.time_ms as f32;
                 self.amplitude = initial_velocity * self.scale_factor;
-                (ScrollerState::Scrolling(Instant::now()), true)
+                (ScrollerState::Scrolling(stamp), true)
             }
         };
         self.state = state;

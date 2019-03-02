@@ -246,7 +246,6 @@ impl AppControl {
             self.state = Some(AppState::NeedEventLoading);
             self.sequencer = Some(seq);
         }
-        self.need_redraw_textures = true;
     }
     pub fn two_finger_scroll_start(&mut self, y: f32) {
         if !self.scroller.update_move(y) {
@@ -269,6 +268,7 @@ impl AppControl {
     }
     pub fn update_position_if_scrolling(&mut self) {
         if let Some((is_end, delta)) = self.scroller.update_position() {
+            println!("{}",delta);
             if let Some(seq) = self.sequencer.take() {
                 if is_end && !self.paused {
                     seq.play(self.pos_us + delta as i64);
@@ -409,8 +409,9 @@ impl AppControl {
                 self.show_events = Some(show_events);
                 if let Some(seq) = self.sequencer.take() {
                     seq.set_midi_data(play_events);
-                    seq.play(-3_000_000);
+                    seq.play(self.pos_us);
                     self.sequencer = Some(seq);
+                    self.need_redraw_textures = true;
                 }
                 AppState::Running
             }
