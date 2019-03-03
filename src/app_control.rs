@@ -199,6 +199,7 @@ impl AppControl {
             } else {
                 250.max(self.scale_1000 - 50)
             };
+            info!("New scaling: {}",self.scale_1000);
             seq.set_scaling_1000(self.scale_1000);
             self.sequencer = Some(seq);
         }

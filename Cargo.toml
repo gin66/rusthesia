@@ -17,7 +17,7 @@ midly = "0.1"
 clap = "2.32"
 indoc = "0.3"
 font-kit = "0.1"
-piano_keyboard = "0.1"
+piano_keyboard = "0.2"
 sdl2_timing = { path = "./sdl2_timing" }
 
 # Dependencies for hacked stderrlog
