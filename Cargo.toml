@@ -18,7 +18,7 @@ clap = "2.32"
 indoc = "0.3"
 font-kit = "0.1"
 piano_keyboard = "0.2"
-sdl2_timing = { path = "./sdl2_timing", version = "0.1.0" }
+sdl2_timing = "0.1"
 
 # Dependencies for hacked stderrlog
 chrono = "0.4"
