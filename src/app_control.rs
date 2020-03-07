@@ -214,6 +214,7 @@ impl AppControl {
             if self.paused {
                 seq.set_pos_us(self.pos_us);
             } else {
+                seq.stop();
                 seq.play(self.pos_us);
             }
             self.sequencer = Some(seq);
