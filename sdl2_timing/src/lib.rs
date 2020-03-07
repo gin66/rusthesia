@@ -58,8 +58,7 @@ pub struct Sdl2Timing<'a> {
     clear_present_avg_us: u32,
     opt_us_per_frame: Option<u32>,
     opt_base_time: Option<Instant>,
-    measured: bool,
-    initialized: bool,
+    need_initalize: bool,
     has_vsync: bool,
     lost_frames_cnt: usize,
     measures: HashMap<&'a str,(u64,u64,u64,u64)>, // min,sum,max,cnt
@@ -97,8 +96,7 @@ impl<'a> Sdl2Timing<'a> {
             opt_us_per_frame: None,
             clear_present_avg_us: 0,
             opt_base_time: None,
-            measured: false,
-            initialized: false,
+            need_initalize: true,
             has_vsync: false,
             lost_frames_cnt: 0,
             display_mode,
@@ -176,7 +174,22 @@ impl<'a> Sdl2Timing<'a> {
                                      canvas: &mut Canvas<Window>,
                                      color: sdl2::pixels::Color) {
         let mut avg_us = 0;
-        if self.initialized {
+        if self.need_initalize {
+            self.last_us = 0;
+            self.stamp = Some(Instant::now());
+            self.need_initalize = false;
+
+            // Due to double buffering ensure both buffers are filled
+            // with the initial color. Otherwise swapping during
+            // measurement would lead to flicker.
+            canvas.set_draw_color(color);
+            canvas.clear();
+            canvas.present();
+            canvas.set_draw_color(color);
+            canvas.clear();
+            self.measure(canvas);
+        }
+        else {
             if !self.has_vsync {
                 let rem_us = self.us_till_next_frame();
                 let sleep_duration = Duration::new(0, rem_us as u32 * 1_000);
@@ -193,24 +206,6 @@ impl<'a> Sdl2Timing<'a> {
             self.sample("Sdl2Timing: before present and clear");
             canvas.present();
             avg_us += self.sample("Sdl2Timing: canvas present").1;
-        }
-        else {
-            self.last_us = 0;
-            self.stamp = Some(Instant::now());
-            self.initialized = true;
-
-            if !self.measured {
-                // Due to double buffering ensure both buffers are filled
-                // with the initial color. Otherwise swapping during
-                // measurement would lead to flicker.
-                canvas.set_draw_color(color);
-                canvas.clear();
-                canvas.present();
-                canvas.set_draw_color(color);
-                canvas.clear();
-                self.measure(canvas);
-                self.measured = true;
-            }
         }
         // TODO: Optional
         canvas.set_draw_color(color);
@@ -263,16 +258,12 @@ impl<'a> Sdl2Timing<'a> {
             0
         }
     }
-    pub fn us_processing_left(&mut self) -> u32 {
-        let us_for_clear_present = self.clear_present_avg_us * 3 / 2;
-        self.us_till_next_frame()
-            .max(us_for_clear_present) - us_for_clear_present
-    }
     pub fn output(&self) {
         if self.has_vsync {
             println!("VSYNC is in use");
             if let Some(us_per_frame) = self.opt_us_per_frame {
-                println!("measured frame rate= {} us/frame",us_per_frame);
+                println!("measured frame rate = {} us/frame",us_per_frame);
+                println!("measured frame frequency = {:.2} Hz",1_000_000.0 / us_per_frame as f64);
             }
             else {
                 println!("...but no frame rate !?");
