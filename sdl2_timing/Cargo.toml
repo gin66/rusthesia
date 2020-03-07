@@ -22,3 +22,5 @@ features = ["gfx","ttf"]
 version = "0.4"
 features = ["std"]
 
+[dev-dependencies]
+simple_logger = "1.0"
