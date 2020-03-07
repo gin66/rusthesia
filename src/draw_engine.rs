@@ -47,7 +47,7 @@ pub fn draw_keyboard(
     keyboard: &piano_keyboard::Keyboard2d,
     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
     pressed: bool,
-) -> Result<(), Box<std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     canvas.set_draw_color(sdl2::pixels::Color::RGB(100, 100, 100));
     canvas.clear();
     //let rec = canvas.viewport();

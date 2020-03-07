@@ -20,7 +20,7 @@ mod usage; // Hacked version of stderrlog crate
 const EV: &str = &"eventloop";
 const SDL: &str = &"sdl";
 
-fn main() -> Result<(), Box<std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = usage::usage();
     let mut control = app_control::AppControl::from_clap(matches);
 

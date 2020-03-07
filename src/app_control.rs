@@ -311,7 +311,7 @@ impl AppControl {
     pub fn create_connected_sequencer(
         &mut self,
         exit_on_eof: bool,
-    ) -> Result<(), Box<std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut sequencer = MidiSequencer::new(exit_on_eof);
         sequencer.connect()?;
         self.time_keeper = Some(sequencer.get_new_listener());

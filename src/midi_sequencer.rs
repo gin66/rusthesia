@@ -272,7 +272,7 @@ impl MidiSequencer {
     pub fn stop(&self) {
         self.control.send(MidiSequencerCommand::Stop).ok();
     }
-    pub fn connect(&mut self) -> Result<(), Box<std::error::Error>> {
+    pub fn connect(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         trace!("output");
         let midi_out = MidiOutput::new("Rusthesia")?;
         // Get an output port (read from console if multiple are available)

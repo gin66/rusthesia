@@ -1,11 +1,11 @@
-use clap::{crate_authors, crate_version};
+use clap::crate_version;
 use clap::{App, Arg};
 use indoc::indoc;
 
 pub fn usage() -> clap::ArgMatches<'static> {
     App::new("Rusthesia")
         .version(crate_version!())
-        .author(crate_authors!("\n"))
+        //.author(crate_authors!("\n"))
         .about(indoc!(
             "
                 Reads midi files and creates piano notes waterfall.

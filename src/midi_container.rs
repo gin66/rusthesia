@@ -185,7 +185,7 @@ impl<'m> MidiContainer<'m> {
     }
 }
 
-pub fn list_command(quiet: bool, midi_fname: &str) -> Result<(), Box<std::error::Error>> {
+pub fn list_command(quiet: bool, midi_fname: &str) -> Result<(), Box<dyn std::error::Error>> {
     let smf_buf = midly::SmfBuffer::open(&midi_fname)?;
     let container = MidiContainer::from_buf(&smf_buf)?;
     if !quiet {
