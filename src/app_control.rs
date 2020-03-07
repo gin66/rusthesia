@@ -248,7 +248,6 @@ impl AppControl {
     }
     pub fn update_position_if_scrolling(&mut self) {
         if let Some((is_end, delta)) = self.scroller.update_position() {
-            println!("{}",delta);
             if let Some(seq) = self.sequencer.take() {
                 if is_end && !self.paused {
                     seq.play(self.pos_us + delta as i64);

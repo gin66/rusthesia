@@ -152,7 +152,7 @@ pub fn get_pressed_key_rectangles(
 pub fn draw_waterfall(
     keyboard: &piano_keyboard::Keyboard2d,
     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-    _i: u32,
+    i: u32,
     bottom_row: u32,
     net_rows: u32,
     overlap: u32,
@@ -162,9 +162,13 @@ pub fn draw_waterfall(
     // The waterfall is flowing from top to bottom with SDL having origin top left.
     // Thus every texture has to fill from bottom to top.
 
-    //let i = (i & 1) as u8 * 40;
-    //canvas.set_draw_color(sdl2::pixels::Color::RGB(140+i,140+i,140+i));
-    canvas.set_draw_color(sdl2::pixels::Color::RGB(100, 100, 100));
+    if false {
+        let i = (i & 1) as u8 * 40;
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(100+i,100+i,100+i));
+    }
+    else {
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(100, 100, 100));
+    }
     canvas.clear();
 
     let left_key = keyboard.left_white_key;
@@ -345,7 +349,7 @@ pub fn copy_waterfall_to_screen(
 
         let src_rect = sdl2::rect::Rect::new(0, y_src, wf_width, cp_height);
         let dst_rect = sdl2::rect::Rect::new(0, y_dst, wf_width, cp_height);
-        trace!("Copy {:?}->{:?}", src_rect, dst_rect);
+        trace!(target: "copy_texture", "Copy {:?}->{:?}", src_rect, dst_rect);
         let cmd = DrawCommand::CopyToScreen {
             src_texture: i + 2,
             src_rect,
