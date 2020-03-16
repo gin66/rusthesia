@@ -4,6 +4,11 @@ set -ex
 
 # TODO This is the "test phase", tweak it as you see fit
 main() {
+
+    pkg-config --libs --cflags alsa
+    export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+    pkg-config --libs --cflags alsa
+
     cross build --target $TARGET
     cross build --target $TARGET --release
 

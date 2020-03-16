@@ -109,9 +109,6 @@ addons:
 install:
   - sh ci/install.sh
   - ls /usr/lib/x86_64-linux-gnu/pkgconfig/
-  - pkg-config --libs --cflags alsa
-  - export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
-  - pkg-config --libs --cflags alsa
   - source ~/.cargo/env || true
 
 script:
