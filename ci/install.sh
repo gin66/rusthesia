@@ -3,7 +3,6 @@ set -ex
 main() {
     local target=
     if [ $TRAVIS_OS_NAME = linux ]; then
-	export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
         target=x86_64-unknown-linux-musl
         sort=sort
     else
