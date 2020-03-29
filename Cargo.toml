@@ -22,8 +22,8 @@ sdl2_timing = "0.1"
 
 # Dependencies for hacked stderrlog
 chrono = "0.4"
-termcolor = "0.3.3"
-thread_local = "0.3"
+termcolor = "1.1"
+thread_local = "1.0"
 
 [dependencies.sdl2]
 version = "0.31"

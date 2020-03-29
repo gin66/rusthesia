@@ -318,9 +318,9 @@ impl Log for StdErrLog {
         }
 
         let writer = self.writer.get_or(|| {
-            Box::new(RefCell::new(io::LineWriter::new(StandardStream::stderr(
+            RefCell::new(io::LineWriter::new(StandardStream::stderr(
                 self.color_choice,
-            ))))
+            )))
         });
         let mut writer = writer.borrow_mut();
         let color = match record.metadata().level() {
@@ -369,9 +369,9 @@ impl Log for StdErrLog {
 
     fn flush(&self) {
         let writer = self.writer.get_or(|| {
-            Box::new(RefCell::new(io::LineWriter::new(StandardStream::stderr(
+            RefCell::new(io::LineWriter::new(StandardStream::stderr(
                 self.color_choice,
-            ))))
+            )))
         });
         let mut writer = writer.borrow_mut();
         writer.flush().ok();
