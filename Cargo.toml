@@ -13,7 +13,7 @@ documentation = "https://docs.rs/releases/search?query=rusthesia"
 
 [dependencies]
 midir = "0.5"
-midly = "0.1"
+midly = "0.4"
 clap = "2.32"
 indoc = "0.3"
 font-kit = "0.1"

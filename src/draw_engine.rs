@@ -164,9 +164,8 @@ pub fn draw_waterfall(
 
     if false {
         let i = (i & 1) as u8 * 40;
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(100+i,100+i,100+i));
-    }
-    else {
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(100 + i, 100 + i, 100 + i));
+    } else {
         canvas.set_draw_color(sdl2::pixels::Color::RGB(100, 100, 100));
     }
     canvas.clear();

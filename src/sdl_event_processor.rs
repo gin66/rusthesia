@@ -27,10 +27,7 @@ pub fn process_event(event: Event, control: &mut AppControl) -> bool {
         } => {
             control.modify_scaling(true);
         }
-        Event::TextInput {
-            text: ref key,
-            ..
-        } if key == &"+".to_string() => {
+        Event::TextInput { text: ref key, .. } if key == &"+".to_string() => {
             control.modify_scaling(true);
         }
         Event::KeyDown {
@@ -39,10 +36,7 @@ pub fn process_event(event: Event, control: &mut AppControl) -> bool {
         } => {
             control.modify_scaling(false);
         }
-        Event::TextInput {
-            text: ref key,
-            ..
-        } if key == &"-".to_string() => {
+        Event::TextInput { text: ref key, .. } if key == &"-".to_string() => {
             control.modify_scaling(false);
         }
         Event::KeyDown {

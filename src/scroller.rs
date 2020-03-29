@@ -93,7 +93,10 @@ impl Scroller {
                 self.amplitude -= delta;
                 if self.time_ms < SCROLL_TIME_MS {
                     trace!("time = {}  Scroll delta = {}", self.time_ms, delta);
-                    (ScrollerState::FreeRunning(Instant::now()), Some((false, delta)))
+                    (
+                        ScrollerState::FreeRunning(Instant::now()),
+                        Some((false, delta)),
+                    )
                 } else {
                     (ScrollerState::Inactive, Some((true, delta)))
                 }

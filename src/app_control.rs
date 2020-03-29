@@ -1,3 +1,4 @@
+use std::io::{Error, ErrorKind};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -40,7 +41,7 @@ fn transposed_message(
     right_key: u8,
 ) -> Option<(u64, usize, MidiEvent)> {
     match (message, all) {
-        (midly::MidiMessage::NoteOn(key, pressure), _) => {
+        (midly::MidiMessage::NoteOn { key, vel }, _) => {
             let shifted_key = key.as_int() as i16 + shift_key as i16;
             if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
                 None
@@ -48,11 +49,11 @@ fn transposed_message(
                 Some((
                     time_us,
                     trk,
-                    MidiEvent::NoteOn(channel, shifted_key as u8, pressure.as_int()),
+                    MidiEvent::NoteOn(channel, shifted_key as u8, vel.as_int()),
                 ))
             }
         }
-        (midly::MidiMessage::NoteOff(key, pressure), _) => {
+        (midly::MidiMessage::NoteOff { key, vel }, _) => {
             let shifted_key = key.as_int() as i16 + shift_key as i16;
             if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
                 None
@@ -60,11 +61,11 @@ fn transposed_message(
                 Some((
                     time_us,
                     trk,
-                    MidiEvent::NoteOff(channel, shifted_key as u8, pressure.as_int()),
+                    MidiEvent::NoteOff(channel, shifted_key as u8, vel.as_int()),
                 ))
             }
         }
-        (midly::MidiMessage::Aftertouch(key, pressure), true) => {
+        (midly::MidiMessage::Aftertouch { key, vel }, true) => {
             let shifted_key = key.as_int() as i16 + shift_key as i16;
             if shifted_key < left_key as i16 || shifted_key > right_key as i16 {
                 None
@@ -72,24 +73,24 @@ fn transposed_message(
                 Some((
                     time_us,
                     trk,
-                    MidiEvent::Aftertouch(channel, shifted_key as u8, pressure.as_int()),
+                    MidiEvent::Aftertouch(channel, shifted_key as u8, vel.as_int()),
                 ))
             }
         }
-        (midly::MidiMessage::Controller(control, value), true) => Some((
+        (midly::MidiMessage::Controller { controller, value }, true) => Some((
             time_us,
             trk,
-            MidiEvent::Controller(channel, control.as_int(), value.as_int()),
+            MidiEvent::Controller(channel, controller.as_int(), value.as_int()),
         )),
-        (midly::MidiMessage::ChannelAftertouch(pressure), true) => Some((
+        (midly::MidiMessage::ChannelAftertouch { vel }, true) => Some((
             time_us,
             trk,
-            MidiEvent::ChannelAftertouch(channel, pressure.as_int()),
+            MidiEvent::ChannelAftertouch(channel, vel.as_int()),
         )),
-        (midly::MidiMessage::PitchBend(change), true) => {
-            Some((time_us, trk, MidiEvent::PitchBend(channel, change.as_int())))
+        (midly::MidiMessage::PitchBend { bend }, true) => {
+            Some((time_us, trk, MidiEvent::PitchBend(channel, bend.as_int())))
         }
-        (midly::MidiMessage::ProgramChange(program), true) => Some((
+        (midly::MidiMessage::ProgramChange { program }, true) => Some((
             time_us,
             trk,
             MidiEvent::ProgramChange(channel, program.as_int()),
@@ -199,7 +200,7 @@ impl AppControl {
             } else {
                 250.max(self.scale_1000 - 50)
             };
-            info!("New scaling: {}",self.scale_1000);
+            info!("New scaling: {}", self.scale_1000);
             seq.set_scaling_1000(self.scale_1000);
             self.sequencer = Some(seq);
         }
@@ -331,10 +332,10 @@ impl AppControl {
         right_key: u8,
     ) -> Result<piano_keyboard::Keyboard2d, std::string::String> {
         Ok(piano_keyboard::KeyboardBuilder::new()
-                    .set_width(width)?
-                    .white_black_gap_present(true)
-                    .set_most_left_right_white_keys(left_key, right_key)?
-                    .build2d())
+            .set_width(width)?
+            .white_black_gap_present(true)
+            .set_most_left_right_white_keys(left_key, right_key)?
+            .build2d())
     }
     pub fn read_midi_file(
         midi_fname: &str,
@@ -344,7 +345,9 @@ impl AppControl {
         show_tracks: Vec<usize>,
         play_tracks: Vec<usize>,
     ) -> Result<(Vec<RawMidiTuple>, Vec<RawMidiTuple>), std::io::Error> {
-        let smf_buf = midly::SmfBuffer::open(midi_fname)?;
+        let buf = std::fs::read(midi_fname)?;
+        let smf_buf = midly::Smf::parse(&buf)
+            .map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?;
         let container = MidiContainer::from_buf(&smf_buf)?;
         let show_events = container
             .iter()
@@ -394,9 +397,8 @@ impl AppControl {
             if let Some(width) = self.width {
                 let jh = thread::spawn(move || {
                     let res = AppControl::build_keyboard(width, left_key, right_key);
-                    let res = res.map_err(|err_str| {
-                        std::io::Error::new(std::io::ErrorKind::Other, err_str)
-                    });
+                    let res = res
+                        .map_err(|err_str| std::io::Error::new(std::io::ErrorKind::Other, err_str));
                     trace!(target: WK, "Send keyboard to main");
                     tx.send(WorkerResult::KeyboardBuilt(res)).unwrap();
                 });
@@ -466,9 +468,9 @@ impl AppControl {
             }
             Ok(WorkerResult::EventsLoaded(Err(_))) => (),
             Ok(WorkerResult::KeyboardBuilt(Err(_))) => (),
-            Err(_) => ()
+            Err(_) => (),
         };
-        debug!("AppState: {:?}",self.state);
+        debug!("AppState: {:?}", self.state);
         let s = match self.state.take() {
             Some(AppState::Check) => {
                 if self.request_events {
@@ -480,8 +482,7 @@ impl AppControl {
                 AppState::Wait
             }
             Some(AppState::Wait) => {
-                if self.event_worker.is_none() 
-                    && self.keyboard_worker.is_none() {
+                if self.event_worker.is_none() && self.keyboard_worker.is_none() {
                     if let Some(seq) = self.sequencer.take() {
                         seq.stop();
                         if !self.paused {
@@ -491,8 +492,7 @@ impl AppControl {
                     }
 
                     AppState::Running
-                }
-                else {
+                } else {
                     AppState::Wait
                 }
             }

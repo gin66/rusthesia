@@ -163,12 +163,8 @@ pub struct MidiContainer<'m> {
     smf: midly::Smf<'m, Vec<midly::Event<'m>>>,
 }
 impl<'m> MidiContainer<'m> {
-    pub fn from_buf(smf_buf: &'m midly::SmfBuffer) -> Result<MidiContainer<'m>, Error> {
-        Ok(MidiContainer {
-            smf: smf_buf
-                .parse()
-                .map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?,
-        })
+    pub fn from_buf(smf: &'m midly::Smf) -> Result<MidiContainer<'m>, Error> {
+        Ok(MidiContainer { smf: smf.clone() })
     }
     pub fn iter(&'m self) -> MidiIterator<'m> {
         let mut mi = MidiIterator::new();
@@ -186,7 +182,9 @@ impl<'m> MidiContainer<'m> {
 }
 
 pub fn list_command(quiet: bool, midi_fname: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let smf_buf = midly::SmfBuffer::open(&midi_fname)?;
+    let buf = std::fs::read(midi_fname)?;
+    let smf_buf =
+        midly::Smf::parse(&buf).map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?;
     let container = MidiContainer::from_buf(&smf_buf)?;
     if !quiet {
         for _evt in container.iter() {
@@ -355,5 +353,4 @@ mod tests {
 
         assert_eq!(last_time_us, 248_102_400);
     }
-
 }
