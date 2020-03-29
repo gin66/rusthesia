@@ -254,19 +254,21 @@ mod tests {
     #[test]
     fn test_01() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         assert_eq!(container.nr_of_tracks(), 3);
         assert_eq!(container.iter().count(), 2423);
         //for evt in container.iter() {
-        //    println!("{:?}", evt);
+        //    println!("{:.unwrap()}", evt);
         //}
     }
 
     #[test]
     fn test_02() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         assert_eq!(
             container
@@ -280,7 +282,8 @@ mod tests {
     #[test]
     fn test_03() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         assert_eq!(
             container
@@ -294,7 +297,8 @@ mod tests {
     #[test]
     fn test_04() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         assert_eq!(
             container
@@ -308,7 +312,8 @@ mod tests {
     #[test]
     fn test_05() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         match container.header().timing {
             midly::Timing::Metrical(t) => assert_eq!(t.as_int(), 384),
@@ -319,7 +324,8 @@ mod tests {
     #[test]
     fn test_06() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         let mut last_time = 0;
         for (time, _, _) in container.iter() {
@@ -333,7 +339,8 @@ mod tests {
     #[test]
     fn test_11() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         assert_eq!(
             container.iter().timed(&container.header().timing).count(),
@@ -343,7 +350,8 @@ mod tests {
     #[test]
     fn test_16() {
         let midi_fname = "Marche_aux_Flambeaux.mid";
-        let smf_buf = midly::SmfBuffer::open(&midi_fname).unwrap();
+        let buf = std::fs::read(midi_fname).unwrap();
+        let smf_buf = midly::Smf::parse(&buf).unwrap();
         let container = midi_container::MidiContainer::from_buf(&smf_buf).unwrap();
         let mut last_time_us = 0;
         for (time_us, _, _) in container.iter().timed(&container.header().timing) {
