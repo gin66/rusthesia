@@ -286,3 +286,7 @@ Consequently automated builds resulting in a public available binary cannot be s
 ## Final Words
 
 The application works, but still this is a quick hack and not polished for code review ;-)
+
+## Alternatives
+
+* [Neothesia](https://github.com/PolyMeilex/Neothesia)
