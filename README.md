@@ -1,6 +1,6 @@
 # Rusthesia
 
-[![Build Status](https://travis-ci.org/gin66/rusthesia.svg?branch=master)](https://travis-ci.org/gin66/rusthesia)
+![Build](https://github.com/gin66/rusthesia/workflows/Rust/badge.svg)
 ![Rust](https://github.com/gin66/rusthesia/workflows/Rust/badge.svg)
 [![dependency status](https://deps.rs/repo/github/gin66/rusthesia/status.svg)](https://deps.rs/repo/github/gin66/rusthesia)
 
